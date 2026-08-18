@@ -75,7 +75,10 @@ public final class UsageTracker: ObservableObject {
         syncWithLocalActivity()
         startTimer()
         setupEventDrivenFileWatchers()
-        fetchLiveQuotasAsync()
+        
+        if UserDefaults.standard.bool(forKey: "AIUsageWidget_HasCompletedOnboarding") {
+            fetchLiveQuotasAsync()
+        }
     }
 
     public func refresh() {
@@ -87,6 +90,10 @@ public final class UsageTracker: ObservableObject {
             try? await Task.sleep(nanoseconds: 600_000_000)
             self.isRefreshing = false
         }
+    }
+
+    public func fetchLiveQuotas() {
+        fetchLiveQuotasAsync()
     }
 
     private func fetchLiveQuotasAsync() {
@@ -120,7 +127,9 @@ public final class UsageTracker: ObservableObject {
         quotaTimer?.invalidate()
         let qt = Timer(timeInterval: 60.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.fetchLiveQuotasAsync()
+                if UserDefaults.standard.bool(forKey: "AIUsageWidget_HasCompletedOnboarding") {
+                    self?.fetchLiveQuotasAsync()
+                }
             }
         }
         qt.tolerance = 5.0
@@ -168,7 +177,9 @@ public final class UsageTracker: ObservableObject {
             try? await Task.sleep(nanoseconds: 80_000_000) // 80ms event coalescing
             if !Task.isCancelled {
                 self?.syncWithLocalActivity()
-                self?.fetchLiveQuotasAsync()
+                if UserDefaults.standard.bool(forKey: "AIUsageWidget_HasCompletedOnboarding") {
+                    self?.fetchLiveQuotasAsync()
+                }
             }
         }
     }
