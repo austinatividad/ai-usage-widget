@@ -71,9 +71,18 @@ The application displays real-time quota consumption and active session states i
 
 ---
 
-## Build and Installation
+## Installation
 
-### Run Directly from Source
+### Download Pre-built Binary
+1. Download `AIUsageWidget-v0.0.1-macos-arm64.zip` from the [Latest Release](https://github.com/austinatividad/ai-usage-widget/releases/latest).
+2. Extract the archive to obtain `AIUsageWidget.app`.
+3. Move `AIUsageWidget.app` to `/Applications` and open it.
+
+---
+
+## Build from Source
+
+### Run Directly
 ```bash
 git clone https://github.com/austinatividad/ai-usage-widget.git
 cd ai-usage-widget
