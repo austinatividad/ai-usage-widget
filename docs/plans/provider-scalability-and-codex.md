@@ -1,6 +1,6 @@
-# Provider Extensibility Architecture and Codex Integration Specification
+# Provider Extensibility Architecture, Codex Integration, and Provider Selection Specification
 
-This document specifies the technical design for scaling the AI Usage Widget to support arbitrary AI providers, including the implementation requirements for Codex.
+This document specifies the technical design for scaling the AI Usage Widget to support arbitrary AI providers, including the implementation requirements for Codex, a dedicated Provider Management Settings Window, and provider selection during initial onboarding.
 
 ---
 
@@ -9,18 +9,19 @@ This document specifies the technical design for scaling the AI Usage Widget to 
 To eliminate provider-specific hardcoding, the widget architecture will transition to a protocol-driven provider registry.
 
 ```
-+-------------------------------------------------------------+
-|                      ProviderRegistry                       |
-|   - registeredProviders: [any AIProvider]                  |
-|   - enabledProviderIds: Set<String> (UserDefaults)          |
-+------------------------------+------------------------------+
-                               |
-         +---------------------+---------------------+
-         |                     |                     |
-+--------v-------+    +--------v-------+    +--------v-------+
-| ClaudeProvider |    |  AGYProvider   |    | CodexProvider  |
-|  (AIProvider)  |    |  (AIProvider)  |    |  (AIProvider)  |
-+----------------+    +----------------+    +----------------+
++-----------------------------------------------------------------+
+|                        ProviderRegistry                         |
+|   - registeredProviders: [any AIProvider]                      |
+|   - enabledProviderIds: Set<String> (UserDefaults)              |
+|   - detectedProviders: [any AIProvider] (System Scan)           |
++--------------------------------+--------------------------------+
+                                 |
+         +-----------------------+-----------------------+
+         |                       |                       |
++--------v---------+    +--------v---------+    +--------v---------+
+|  ClaudeProvider  |    |   AGYProvider    |    |  CodexProvider   |
+|   (AIProvider)   |    |   (AIProvider)   |    |   (AIProvider)   |
++------------------+    +------------------+    +------------------+
 ```
 
 ### 1.1 The `AIProvider` Protocol Contract
@@ -47,6 +48,9 @@ public protocol AIProvider: Sendable, Identifiable {
     /// Filesystem paths monitored for real-time kernel events
     var monitoredPaths: [String] { get }
     
+    /// Checks if the provider CLI installation exists on the local filesystem
+    var isInstalledOnSystem: Bool { get }
+    
     /// Method to fetch authenticated live quota from remote API
     func fetchLiveQuota() async -> LiveQuotaResult?
     
@@ -57,26 +61,88 @@ public protocol AIProvider: Sendable, Identifiable {
 
 ---
 
-## 2. Dynamic UI Scaling
+## 2. Provider Management Window (Accessed via Secondary Click)
 
-The widget and notch dropdown interfaces must adapt dynamically to the number of enabled providers:
+A dedicated Provider Management Settings Window will allow users to configure and toggle installed AI providers at any time.
 
-1. **Height Computation:**
+### 2.1 Access Points
+1. **Secondary Click (Right-Click) Context Menu**: Adds menu item **"Manage Providers..."** with shortcut `⌘,`.
+2. **Menu Bar Status Item**: Adds menu item **"Manage Providers..."**.
+
+### 2.2 Window Specifications
+- **Window Dimensions**: 480 pt width × 440 pt height.
+- **Window Level**: Floating modal (`.floating`) with standard window close controls.
+- **Visual Style**: Dark translucent glass (`.ultraThinMaterial`) matching system widget aesthetics.
+
+### 2.3 Interface Layout & Controls
+For each registered provider in `ProviderRegistry`:
+1. **Header**: Provider icon, display name, and installation badge (`Installed` or `Not Detected`).
+2. **Toggle Switch**: Enables or disables monitoring for that provider.
+3. **Authorization Status**:
+   - Displays whether Keychain credentials are valid.
+   - Provides an **"Authorize Access"** button if permissions are missing.
+4. **Live Preview**: Shows current quota percentage and session status for active providers.
+
+```
++-------------------------------------------------------------+
+| Manage AI Providers                                     [x] |
+| Enable or disable monitoring for detected CLI tools.        |
++-------------------------------------------------------------+
+| [🤖] Claude Code                     [Installed]  [ Toggle: ON ] |
+|      Quota: % consumed · Status: 4 Idle                      |
+|                                                             |
+| [✨] Antigravity                     [Installed]  [ Toggle: ON ] |
+|      Quota: % available · Status: Active                     |
+|                                                             |
+| [⚡️] Codex CLI                       [Installed]  [ Toggle: ON ] |
+|      Quota: % consumed · Status: Idle                        |
++-------------------------------------------------------------+
+|                                              [ Close Window ]|
++-------------------------------------------------------------+
+```
+
+---
+
+## 3. Provider Selection in Initial Onboarding
+
+The first-launch onboarding flow (`OnboardingView`) will include provider selection as the primary configuration step.
+
+### 3.1 Onboarding Flow Steps
+1. **Step 1: Provider Selection**
+   - The application scans the filesystem for `~/.claude/`, `~/.gemini/`, and `~/.codex/`.
+   - Automatically pre-selects all detected providers.
+   - Allows users to check or uncheck individual providers.
+2. **Step 2: Credential Authorization**
+   - Requests Keychain authorization **only for enabled providers**.
+   - Displays prominent instructions highlighting the **"Always Allow"** system prompt.
+3. **Step 3: Display and Startup Preferences**
+   - Configures Notch Dynamic Island, startup launch, and desktop window layer.
+4. **Step 4: Completion**
+   - Persists selections to `UserDefaults` and displays the configured widget.
+
+---
+
+## 4. Dynamic UI Scaling
+
+The widget and notch dropdown interfaces adapt dynamically to the number of enabled providers:
+
+1. **Height Calculation:**
    $$\text{Window Height} = 95\text{pt (Base Padding \& Controls)} + (40\text{pt} \times N_{\text{enabled providers}})$$
    - 1 Provider: 135 pt
    - 2 Providers: 175 pt
    - 3 Providers: 215 pt
+   - 4 Providers: 255 pt
 
-2. **Provider Selection in Settings:**
-   - The context menu and onboarding screen will display toggle switches for each registered provider.
-   - Disabled providers consume zero background resources, zero file descriptors, and zero CPU cycles.
+2. **Resource Optimization:**
+   - Disabled providers attach zero `DispatchSource` filesystem watchers.
+   - Disabled providers execute zero background network requests and zero process table scans.
 
 ---
 
-## 3. Codex Integration Specification
+## 5. Codex Integration Specification
 
-### 3.1 Local Filesystem Layout
-Codex stores session and authentication state in the user home directory at `~/.codex/`:
+### 5.1 Local Filesystem Layout
+Codex stores session and authentication state in `~/.codex/`:
 
 | Path | Purpose |
 |---|---|
@@ -88,51 +154,42 @@ Codex stores session and authentication state in the user home directory at `~/.
 
 ---
 
-### 3.2 Live Quota Synchronization
-
-#### Method A: OpenAI API Subscription Limits
-If Codex authenticates via OpenAI API Key or ChatGPT OAuth:
+### 5.2 Live Quota Synchronization
 - **API Endpoint:** `https://api.openai.com/v1/usage` or OpenAI Dashboard Session API.
-- **Header Rate Limits:** Inspects `x-ratelimit-remaining-requests`, `x-ratelimit-reset-requests`, and token usage buckets.
-
-#### Method B: Rate Limit Calculation
-- Calculates 5-hour rolling token windows and monthly/weekly plan quotas.
-- Displays consumed percentage (`% used`) or remaining tokens based on account tier.
+- **Header Limits:** Monitors `x-ratelimit-remaining-requests` and `x-ratelimit-reset-requests`.
+- **Calculation:** Computes 5-hour rolling token windows and plan quotas.
 
 ---
 
-### 3.3 Session & Process State Detection
-
-The Codex provider will detect runtime states as follows:
-
+### 5.3 Session & Process State Detection
 1. **Active State (`● Active`):**
-   - Reads `~/.codex/process_manager/chat_processes.json`.
-   - Validates live PID existence using `kill(pid, 0)`.
-   - Verifies if SQLite WAL (`~/.codex/logs_2.sqlite-wal`) was modified within the last 2.5 seconds.
-
+   - Validates live PID in `~/.codex/process_manager/chat_processes.json` using `kill(pid, 0)`.
+   - Checks if `~/.codex/logs_2.sqlite-wal` was modified within 2.5 seconds.
 2. **Approval State (`● Needs response`):**
-   - Identifies pending permission prompts or approval gates in active session files.
-
+   - Identifies pending permission prompts in active session files.
 3. **Idle State (`● X Idle`):**
-   - Process is active in `chat_processes.json` but no recent disk writes or tool executions are occurring.
-
+   - Process is alive in `chat_processes.json` with no active disk writes.
 4. **Inactive State:**
-   - No active processes in `chat_processes.json` and process table is clear.
+   - No active processes in `chat_processes.json`.
 
 ---
 
-## 4. Implementation Checklist
+## 6. Implementation Checklist
 
-- [ ] **Phase 1: Core Protocol Definition**
-  - Create `AIProvider.swift` and `ProviderRegistry.swift`.
-  - Refactor `ClaudeProvider` and `AntigravityProvider` to conform to `AIProvider`.
+- [ ] **Phase 1: Universal Provider Architecture**
+  - Create `AIProvider.swift` protocol and `ProviderRegistry.swift`.
+  - Migrate `ClaudeProvider` and `AntigravityProvider` to conform to `AIProvider`.
 - [ ] **Phase 2: Codex Provider Implementation**
-  - Implement `CodexProvider.swift`.
-  - Add official Codex vector icon to `Sources/Resources/codex.svg`.
-  - Implement credential extraction from `~/.codex/auth.json` and Keychain.
-  - Implement process detection via `~/.codex/process_manager/chat_processes.json`.
-- [ ] **Phase 3: Dynamic View Architecture**
-  - Update `WidgetContent` and `NotchIslandView` to iterate over `tracker.enabledProviders`.
-  - Implement dynamic window height calculation in `WidgetWindowManager`.
-- [ ] **Phase 4: Settings & Onboarding Integration**
-  - Add provider toggle checkboxes to `OnboardingView` and `WidgetView.contextMenu`.
+  - Create `CodexProvider.swift`.
+  - Add official Codex vector icon asset to `Sources/Resources/codex.svg`.
+  - Implement credential extraction and process detection for Codex.
+- [ ] **Phase 3: Dedicated Provider Management Window**
+  - Create `ProviderSettingsView.swift`.
+  - Wire secondary click menu item **"Manage Providers..."** to open settings window.
+  - Implement dynamic window height adjustments on provider toggle.
+- [ ] **Phase 4: Onboarding Integration**
+  - Add Step 1 (Provider Discovery & Selection) to `OnboardingView.swift`.
+  - Ensure permission requests only trigger for selected providers.
+- [ ] **Phase 5: Verification & Packaging**
+  - Verify multi-display notch expansion with 1, 2, and 3 enabled providers.
+  - Update `README.md` and package `v0.0.2` application bundle.
