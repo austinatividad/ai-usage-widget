@@ -3,18 +3,40 @@ import ServiceManagement
 
 public struct WidgetContent: View {
     @ObservedObject var tracker: UsageTracker
+    public var mode: WidgetDisplayMode
+    public var isHovered: Bool
     
-    public init(tracker: UsageTracker) {
+    public init(tracker: UsageTracker, mode: WidgetDisplayMode = .standard, isHovered: Bool = false) {
         self.tracker = tracker
+        self.mode = mode
+        self.isHovered = isHovered
+    }
+    
+    private var effectiveMode: WidgetDisplayMode {
+        if mode == .hoverExpand {
+            return isHovered ? .standard : .inline
+        }
+        return mode
     }
     
     public var body: some View {
+        switch effectiveMode {
+        case .standard:
+            standardLayout
+        case .inline, .hoverExpand:
+            inlineLayout
+        case .microStack:
+            microStackLayout
+        }
+    }
+    
+    // MARK: - 1. Standard Layout (Full Detailed)
+    private var standardLayout: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Dynamic Providers List
             ForEach(tracker.activeProviders) { provider in
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 7) {
-                        providerIcon(id: provider.id)
+                        providerIcon(id: provider.id, size: 14)
                         Text(provider.name)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white)
@@ -24,29 +46,125 @@ public struct WidgetContent: View {
                         headerStatusBadge(usage: provider)
                     }
                     
-                    // 5H Row
-                    usageRow(usage: provider.usage5H, fillColor: providerFillColor(id: provider.id))
-                    
-                    // 7D Row
-                    usageRow(usage: provider.usage7D, fillColor: providerFillColor(id: provider.id))
+                    standardUsageRow(usage: provider.usage5H, fillColor: providerFillColor(id: provider.id))
+                    standardUsageRow(usage: provider.usage7D, fillColor: providerFillColor(id: provider.id))
                 }
             }
         }
     }
     
+    // MARK: - 2. Inline Layout (Concept A: Single-Row Compact)
+    private var inlineLayout: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(tracker.activeProviders) { provider in
+                HStack(spacing: 7) {
+                    providerIcon(id: provider.id, size: 13)
+                    
+                    // 5H Micro Bar
+                    HStack(spacing: 4) {
+                        Text("5H")
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(white: 0.45))
+                        
+                        UsageProgressBar(progress: provider.usage5H.progress, fillColor: providerFillColor(id: provider.id), height: 5.5)
+                            .frame(width: 44)
+                        
+                        Text(provider.usage5H.percentageText)
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(Color(white: 0.75))
+                            .frame(width: 25, alignment: .trailing)
+                    }
+                    
+                    // 7D Micro Bar
+                    HStack(spacing: 4) {
+                        Text("7D")
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(white: 0.45))
+                        
+                        UsageProgressBar(progress: provider.usage7D.progress, fillColor: providerFillColor(id: provider.id), height: 5.5)
+                            .frame(width: 44)
+                        
+                        Text(provider.usage7D.percentageText)
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(Color(white: 0.75))
+                            .frame(width: 25, alignment: .trailing)
+                    }
+                    
+                    Spacer()
+                    
+                    miniStatusDot(status: provider.activityStatus)
+                }
+                .help("\(provider.name)\n5H: \(provider.usage5H.percentageText) (Refreshes in \(provider.usage5H.formattedCountdown))\n7D: \(provider.usage7D.percentageText) (Refreshes in \(provider.usage7D.formattedCountdown))")
+            }
+        }
+    }
+    
+    // MARK: - 3. Micro Stack Layout (Concept B: Ultra-Narrow)
+    private var microStackLayout: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(tracker.activeProviders) { provider in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        providerIcon(id: provider.id, size: 12)
+                        Text(provider.name)
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        
+                        Spacer()
+                        
+                        miniStatusDot(status: provider.activityStatus)
+                    }
+                    
+                    // 5H Row
+                    HStack(spacing: 5) {
+                        Text("5H")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(white: 0.45))
+                            .frame(width: 16, alignment: .leading)
+                        
+                        UsageProgressBar(progress: provider.usage5H.progress, fillColor: providerFillColor(id: provider.id), height: 5)
+                        
+                        Text(provider.usage5H.percentageText)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundColor(Color(white: 0.7))
+                            .frame(width: 26, alignment: .trailing)
+                    }
+                    
+                    // 7D Row
+                    HStack(spacing: 5) {
+                        Text("7D")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(white: 0.45))
+                            .frame(width: 16, alignment: .leading)
+                        
+                        UsageProgressBar(progress: provider.usage7D.progress, fillColor: providerFillColor(id: provider.id), height: 5)
+                        
+                        Text(provider.usage7D.percentageText)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundColor(Color(white: 0.7))
+                            .frame(width: 26, alignment: .trailing)
+                    }
+                }
+                .help("\(provider.name)\n5H resets in \(provider.usage5H.formattedCountdown)\n7D resets in \(provider.usage7D.formattedCountdown)")
+            }
+        }
+    }
+    
+    // MARK: - Components
     @ViewBuilder
-    private func providerIcon(id: String) -> some View {
+    private func providerIcon(id: String, size: CGFloat) -> some View {
         switch id {
         case "claude":
-            ClaudeIconView(size: 14)
+            ClaudeIconView(size: size)
         case "antigravity":
-            AntigravityIconView(size: 14)
+            AntigravityIconView(size: size)
         case "codex":
-            CodexIconView(size: 14)
+            CodexIconView(size: size)
         default:
             Image(systemName: "cpu")
                 .resizable()
-                .frame(width: 14, height: 14)
+                .frame(width: size, height: size)
                 .foregroundColor(.white)
         }
     }
@@ -61,6 +179,26 @@ public struct WidgetContent: View {
             return Color(red: 16/255, green: 163/255, blue: 127/255)
         default:
             return .white
+        }
+    }
+    
+    @ViewBuilder
+    private func miniStatusDot(status: ActivityStatus) -> some View {
+        switch status {
+        case .needsResponse:
+            Circle()
+                .fill(Color(red: 255/255, green: 159/255, blue: 10/255))
+                .frame(width: 5.5, height: 5.5)
+        case .active:
+            Circle()
+                .fill(Color(red: 48/255, green: 209/255, blue: 88/255))
+                .frame(width: 5.5, height: 5.5)
+        case .idle:
+            Circle()
+                .fill(Color(white: 0.45))
+                .frame(width: 4.5, height: 4.5)
+        case .inactive:
+            EmptyView()
         }
     }
     
@@ -115,7 +253,7 @@ public struct WidgetContent: View {
     }
     
     @ViewBuilder
-    private func usageRow(usage: WindowUsage, fillColor: Color) -> some View {
+    private func standardUsageRow(usage: WindowUsage, fillColor: Color) -> some View {
         HStack(spacing: 8) {
             Text(usage.label)
                 .font(.system(size: 10.5, weight: .bold, design: .monospaced))
@@ -142,31 +280,66 @@ public struct WidgetView: View {
     @ObservedObject var tracker: UsageTracker
     @AppStorage("AIUsageWidget_PinOnTop") private var isPinnedOnTop: Bool = false
     @AppStorage("AIUsageWidget_EnableNotchIsland") private var isNotchEnabled: Bool = true
+    @AppStorage("AIUsageWidget_DisplayMode") private var displayModeRaw: String = WidgetDisplayMode.standard.rawValue
+    
+    @State private var isHovered: Bool = false
+    
+    private var displayMode: WidgetDisplayMode {
+        WidgetDisplayMode(rawValue: displayModeRaw) ?? .standard
+    }
     
     public init(tracker: UsageTracker) {
         self.tracker = tracker
     }
     
     public var body: some View {
-        WidgetContent(tracker: tracker)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .frame(width: 350, height: tracker.widgetHeight)
+        let dimensions = tracker.widgetDimensions(for: displayMode, isHovered: isHovered)
+        
+        WidgetContent(tracker: tracker, mode: displayMode, isHovered: isHovered)
+            .padding(.horizontal, displayMode == .microStack ? 14 : (displayMode == .inline ? 14 : 20))
+            .padding(.vertical, displayMode == .inline ? 12 : 14)
+            .frame(width: dimensions.width, height: dimensions.height)
             .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
                         .fill(.ultraThinMaterial)
                     
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.black.opacity(0.75))
+                    RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
+                        .fill(Color.black.opacity(0.78))
                     
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 }
             )
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .animation(.easeInOut(duration: 0.25), value: tracker.widgetHeight)
+            .clipShape(RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous))
+            .onHover { hovering in
+                if displayMode == .hoverExpand {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.86)) {
+                        isHovered = hovering
+                    }
+                    WidgetWindowManager.shared.syncWindowDimensions(isHovered: hovering)
+                }
+            }
+            .animation(.easeInOut(duration: 0.22), value: displayModeRaw)
+            .animation(.easeInOut(duration: 0.22), value: tracker.activeProviders.count)
             .contextMenu {
+                Menu("Display Mode") {
+                    ForEach(WidgetDisplayMode.allCases) { mode in
+                        Button(action: {
+                            displayModeRaw = mode.rawValue
+                            WidgetWindowManager.shared.syncWindowDimensions()
+                        }) {
+                            HStack {
+                                if displayMode == mode {
+                                    Text("✓ " + mode.displayName)
+                                } else {
+                                    Text(mode.displayName)
+                                }
+                            }
+                        }
+                    }
+                }
+                
                 Button(action: {
                     WidgetWindowManager.shared.openProviderSettings()
                 }) {

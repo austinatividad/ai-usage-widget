@@ -36,6 +36,29 @@ public final class UsageTracker: ObservableObject {
         return CGFloat(32 + (54 * count) + (12 * (count - 1)))
     }
 
+    public func widgetDimensions(for mode: WidgetDisplayMode, isHovered: Bool = false) -> CGSize {
+        let count = max(1, activeProviders.count)
+        let effectiveMode: WidgetDisplayMode = (mode == .hoverExpand && isHovered) ? .standard : mode
+        
+        switch effectiveMode {
+        case .standard:
+            let h = CGFloat(32 + (54 * count) + (12 * (count - 1)))
+            return CGSize(width: 350, height: h)
+            
+        case .inline:
+            let h = CGFloat(26 + (28 * count) + (8 * (count - 1)))
+            return CGSize(width: 260, height: h)
+            
+        case .microStack:
+            let h = CGFloat(28 + (46 * count) + (10 * (count - 1)))
+            return CGSize(width: 195, height: h)
+            
+        case .hoverExpand:
+            let h = CGFloat(26 + (28 * count) + (8 * (count - 1)))
+            return CGSize(width: 260, height: h)
+        }
+    }
+
     public init() {
         let now = Date()
         let calendar = Calendar.current

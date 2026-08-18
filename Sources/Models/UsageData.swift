@@ -1,6 +1,41 @@
 import Foundation
 import SwiftUI
 
+public enum WidgetDisplayMode: String, CaseIterable, Identifiable, Sendable {
+    case standard = "standard"
+    case inline = "inline"
+    case microStack = "microStack"
+    case hoverExpand = "hoverExpand"
+    
+    public var id: String { rawValue }
+    
+    public var displayName: String {
+        switch self {
+        case .standard:
+            return "Standard"
+        case .inline:
+            return "Compact Inline"
+        case .microStack:
+            return "Micro Stack"
+        case .hoverExpand:
+            return "Hover Expand"
+        }
+    }
+    
+    public var description: String {
+        switch self {
+        case .standard:
+            return "Full view with dual rows, progress bars, and countdown timers."
+        case .inline:
+            return "Single-line horizontal rows with dual micro-bars."
+        case .microStack:
+            return "Ultra-narrow vertical layout for screen corners."
+        case .hoverExpand:
+            return "Compact by default; expands to Standard on mouse hover."
+        }
+    }
+}
+
 public enum QuotaFormat: Sendable, Equatable {
     case percentUsed       // Claude/Codex style: e.g. 0% used, 24% used
     case percentRemaining  // Antigravity style: e.g. 81% remaining, 97% remaining

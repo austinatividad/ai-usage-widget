@@ -17,6 +17,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
     private let pinOnTopKey = "AIUsageWidget_PinOnTop"
     private let enableNotchKey = "AIUsageWidget_EnableNotchIsland"
     private let hasCompletedOnboardingKey = "AIUsageWidget_HasCompletedOnboarding"
+    private let displayModeKey = "AIUsageWidget_DisplayMode"
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
@@ -54,6 +55,22 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         menu.addItem(titleItem)
         menu.addItem(NSMenuItem.separator())
         
+        // Display Mode Submenu
+        let displayModeMenu = NSMenu()
+        let currentModeRaw = UserDefaults.standard.string(forKey: displayModeKey) ?? "standard"
+        let currentMode = WidgetDisplayMode(rawValue: currentModeRaw) ?? .standard
+        
+        for mode in WidgetDisplayMode.allCases {
+            let item = NSMenuItem(title: mode.displayName, action: #selector(changeDisplayModeAction(_:)), keyEquivalent: "")
+            item.representedObject = mode.rawValue
+            item.state = (mode == currentMode) ? .on : .off
+            displayModeMenu.addItem(item)
+        }
+        
+        let displayModeParent = NSMenuItem(title: "Display Mode", action: nil, keyEquivalent: "")
+        displayModeParent.submenu = displayModeMenu
+        menu.addItem(displayModeParent)
+        
         menu.addItem(NSMenuItem(title: "Manage Providers...", action: #selector(openProviderSettingsAction), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Refresh Now", action: #selector(refreshAction), keyEquivalent: "r"))
         menu.addItem(NSMenuItem(title: "Toggle Visibility", action: #selector(toggleVisibility), keyEquivalent: "v"))
@@ -85,6 +102,32 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         statusItem?.menu = menu
     }
 
+    @objc private func changeDisplayModeAction(_ sender: NSMenuItem) {
+        guard let modeRaw = sender.representedObject as? String else { return }
+        UserDefaults.standard.set(modeRaw, forKey: displayModeKey)
+        syncWindowDimensions()
+    }
+
+    public func syncWindowDimensions(isHovered: Bool = false) {
+        guard let window = window else { return }
+        let currentModeRaw = UserDefaults.standard.string(forKey: displayModeKey) ?? "standard"
+        let currentMode = WidgetDisplayMode(rawValue: currentModeRaw) ?? .standard
+        let newSize = tracker.widgetDimensions(for: currentMode, isHovered: isHovered)
+        
+        var frame = window.frame
+        let deltaW = newSize.width - frame.width
+        let deltaH = newSize.height - frame.height
+        
+        frame.size = newSize
+        frame.origin.y -= deltaH // Anchor top
+        if deltaW != 0 {
+            frame.origin.x -= (deltaW / 2)
+        }
+        
+        window.setFrame(frame, display: true, animate: true)
+        updateMenu()
+    }
+
     public func openProviderSettings() {
         if let existing = settingsWindow {
             existing.makeKeyAndOrderFront(nil)
@@ -98,7 +141,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         let settingsView = ProviderSettingsView(tracker: tracker) { [weak self] in
             self?.settingsWindow?.orderOut(nil)
             self?.settingsWindow = nil
-            self?.syncWindowFrame()
+            self?.syncWindowDimensions()
         }
         
         let hostingView = NSHostingView(rootView: settingsView)
@@ -129,16 +172,6 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
 
     @objc private func openProviderSettingsAction() {
         openProviderSettings()
-    }
-
-    private func syncWindowFrame() {
-        guard let window = window else { return }
-        var frame = window.frame
-        let newHeight = tracker.widgetHeight
-        let deltaY = newHeight - frame.height
-        frame.size.height = newHeight
-        frame.origin.y -= deltaY // Keep top anchor stable
-        window.setFrame(frame, display: true, animate: true)
     }
 
     private func showOnboardingWindow() {
@@ -183,11 +216,15 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
             return
         }
         
+        let currentModeRaw = UserDefaults.standard.string(forKey: displayModeKey) ?? "standard"
+        let currentMode = WidgetDisplayMode(rawValue: currentModeRaw) ?? .standard
+        let dimensions = tracker.widgetDimensions(for: currentMode)
+        
         let contentView = WidgetView(tracker: tracker)
         let hostingView = NSHostingView(rootView: contentView)
         
         let window = NSWindow(
-            contentRect: NSRect(x: 100, y: 100, width: 350, height: tracker.widgetHeight),
+            contentRect: NSRect(x: 100, y: 100, width: dimensions.width, height: dimensions.height),
             styleMask: [.borderless, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -214,8 +251,8 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
             window.setFrameOrigin(point)
         } else if let screen = NSScreen.main {
             let screenRect = screen.visibleFrame
-            let x = screenRect.maxX - 380
-            let y = screenRect.maxY - 220
+            let x = screenRect.maxX - (dimensions.width + 30)
+            let y = screenRect.maxY - (dimensions.height + 40)
             window.setFrameOrigin(NSPoint(x: x, y: y))
         }
         
