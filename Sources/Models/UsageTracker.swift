@@ -160,16 +160,14 @@ public final class UsageTracker: ObservableObject {
         RunLoop.main.add(t, forMode: .common)
         self.timer = t
         
-        // Quota background sync every 60s
+        // Quota background sync every 25s
         quotaTimer?.invalidate()
-        let qt = Timer(timeInterval: 60.0, repeats: true) { [weak self] _ in
+        let qt = Timer(timeInterval: 25.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                if UserDefaults.standard.bool(forKey: "AIUsageWidget_HasCompletedOnboarding") {
-                    self?.fetchLiveQuotasAsync()
-                }
+                self?.fetchLiveQuotasAsync()
             }
         }
-        qt.tolerance = 5.0
+        qt.tolerance = 2.5
         RunLoop.main.add(qt, forMode: .common)
         self.quotaTimer = qt
     }
@@ -219,14 +217,15 @@ public final class UsageTracker: ObservableObject {
     }
 
     private func handleFileEvent() {
+        // Instant local status update (active vs idle vs needs response)
+        syncWithLocalActivity()
+        
+        // Coalesced live quota fetch after turn activity completes
         debounceTask?.cancel()
         debounceTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 80_000_000) // 80ms event coalescing
+            try? await Task.sleep(nanoseconds: 1_200_000_000) // 1.2s turn settling
             if !Task.isCancelled {
-                self?.syncWithLocalActivity()
-                if UserDefaults.standard.bool(forKey: "AIUsageWidget_HasCompletedOnboarding") {
-                    self?.fetchLiveQuotasAsync()
-                }
+                self?.fetchLiveQuotasAsync()
             }
         }
     }

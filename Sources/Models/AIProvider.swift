@@ -34,6 +34,7 @@ public struct ClaudeProvider: AIProvider {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return [
             home.appendingPathComponent(".claude/sessions").path,
+            home.appendingPathComponent(".claude/projects").path,
             home.appendingPathComponent(".claude").path
         ]
     }
