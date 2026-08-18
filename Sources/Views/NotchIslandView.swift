@@ -11,7 +11,7 @@ public struct NotchIslandView: View {
     private let notchHeight: CGFloat = 32
     
     private var expandedHeight: CGFloat {
-        return tracker.widgetHeight + 30
+        return tracker.widgetHeight + 32
     }
     
     public init(tracker: UsageTracker) {
@@ -22,9 +22,9 @@ public struct NotchIslandView: View {
         ZStack(alignment: .top) {
             // Expanded Panel
             VStack(spacing: 0) {
-                WidgetContent(tracker: tracker, showRefresh: true)
+                WidgetContent(tracker: tracker)
             }
-            .padding(.horizontal, 22)
+            .padding(.horizontal, 20)
             .padding(.top, 48)
             .padding(.bottom, 16)
             .frame(width: 350, height: expandedHeight)

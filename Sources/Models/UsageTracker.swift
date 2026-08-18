@@ -33,7 +33,7 @@ public final class UsageTracker: ObservableObject {
 
     public var widgetHeight: CGFloat {
         let count = max(1, activeProviders.count)
-        return CGFloat(55 + (60 * count))
+        return CGFloat(32 + (54 * count) + (12 * (count - 1)))
     }
 
     public init() {

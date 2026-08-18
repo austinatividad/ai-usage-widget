@@ -3,12 +3,9 @@ import ServiceManagement
 
 public struct WidgetContent: View {
     @ObservedObject var tracker: UsageTracker
-    public var showRefresh: Bool = true
-    @State private var spinRotation: Double = 0
     
-    public init(tracker: UsageTracker, showRefresh: Bool = true) {
+    public init(tracker: UsageTracker) {
         self.tracker = tracker
-        self.showRefresh = showRefresh
     }
     
     public var body: some View {
@@ -32,28 +29,6 @@ public struct WidgetContent: View {
                     
                     // 7D Row
                     usageRow(usage: provider.usage7D, fillColor: providerFillColor(id: provider.id))
-                }
-            }
-            
-            if showRefresh {
-                Spacer(minLength: 2)
-                
-                // Bottom Controls
-                HStack {
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            spinRotation += 360
-                        }
-                        tracker.refresh()
-                    }) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Color(white: 0.7))
-                            .rotationEffect(.degrees(spinRotation))
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Spacer()
                 }
             }
         }
@@ -173,10 +148,9 @@ public struct WidgetView: View {
     }
     
     public var body: some View {
-        WidgetContent(tracker: tracker, showRefresh: true)
-            .padding(.horizontal, 22)
-            .padding(.top, 18)
-            .padding(.bottom, 16)
+        WidgetContent(tracker: tracker)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
             .frame(width: 350, height: tracker.widgetHeight)
             .background(
                 ZStack {
@@ -184,7 +158,7 @@ public struct WidgetView: View {
                         .fill(.ultraThinMaterial)
                     
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.black.opacity(0.72))
+                        .fill(Color.black.opacity(0.75))
                     
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
