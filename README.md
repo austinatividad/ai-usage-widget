@@ -1,6 +1,13 @@
-# tacho
+<p align="center">
+  <img src="logo.jpg" alt="tacho logo" width="140" style="border-radius: 28px;" />
+</p>
 
-`tacho` is a native macOS desktop utility and Dynamic Island HUD that monitors real-time rate limits, token allowances, and live session turn states for Claude Code, Antigravity, and Codex CLI.
+<h1 align="center">tacho</h1>
+
+<p align="center">
+  <strong>Native macOS desktop utility and Dynamic Island HUD for real-time AI quota and session monitoring</strong><br>
+  <span>Supporting Claude Code, Antigravity, and Codex CLI</span>
+</p>
 
 ---
 
@@ -128,6 +135,7 @@ cp -r tacho.app /Applications/
 
 ```
 ai-usage-widget/
+├── logo.jpg                          # Official tacho brand mark
 ├── Package.swift                     # Swift Package Manager manifest
 ├── scripts/
 │   └── bundle-app.sh                 # Application bundling script
@@ -147,10 +155,12 @@ ai-usage-widget/
 │   │   ├── OnboardingView.swift      # Initial setup and provider selection
 │   │   ├── ProviderSettingsView.swift# Provider configuration modal window
 │   │   ├── UsageProgressBar.swift    # Quota progress bar component
-│   │   └── VectorIcons.swift         # Vector icon assets (Claude, AGY, Codex)
+│   │   └── VectorIcons.swift         # Vector icon assets (Claude, AGY, Codex, Tacho)
 │   ├── Window/
 │   │   └── WidgetWindowManager.swift # Window controller and menu bar item
 │   └── Resources/
+│       ├── logo.jpg                  # Application logo asset
+│       ├── AppIcon.icns              # macOS application icon bundle
 │       ├── claude.svg                # Claude vector asset
 │       ├── antigravity.svg           # Antigravity vector asset
 │       ├── codex.svg                 # Codex vector asset

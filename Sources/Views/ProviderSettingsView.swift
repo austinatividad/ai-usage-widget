@@ -23,8 +23,10 @@ public struct ProviderSettingsView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                TachoLogoView(size: 34)
+                
+                VStack(alignment: .leading, spacing: 3) {
                     Text("tacho Settings")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)

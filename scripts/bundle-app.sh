@@ -25,6 +25,11 @@ elif [ -d "$BUILD_DIR/AIUsageWidget_AIUsageWidget.bundle" ]; then
     cp -R "$BUILD_DIR/AIUsageWidget_AIUsageWidget.bundle" "$APP_BUNDLE/Contents/Resources/"
 fi
 
+# Copy AppIcon.icns if available
+if [ -f "$DIR/Sources/Resources/AppIcon.icns" ]; then
+    cp "$DIR/Sources/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+fi
+
 # Info.plist
 cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -39,6 +44,8 @@ cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
     <string>tacho</string>
     <key>CFBundleDisplayName</key>
     <string>tacho</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

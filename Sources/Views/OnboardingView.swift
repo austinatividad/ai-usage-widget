@@ -20,21 +20,20 @@ public struct OnboardingView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    ClaudeIconView(size: 16)
-                    AntigravityIconView(size: 16)
-                    CodexIconView(size: 16)
-                    Spacer()
+            HStack(spacing: 14) {
+                TachoLogoView(size: 44)
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("tacho Setup")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Text("Select your tools and configure monitoring preferences.")
+                        .font(.system(size: 11.5, weight: .regular))
+                        .foregroundColor(Color(white: 0.6))
                 }
                 
-                Text("tacho Setup")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.white)
-                
-                Text("Select your tools and configure monitoring preferences.")
-                    .font(.system(size: 11.5, weight: .regular))
-                    .foregroundColor(Color(white: 0.6))
+                Spacer()
             }
             
             Divider()

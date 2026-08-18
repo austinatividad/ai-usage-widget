@@ -20,6 +20,9 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
     private let displayModeKey = "AIUsageWidget_DisplayMode"
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        if let logo = IconAssetCache.logoImage {
+            NSApplication.shared.applicationIconImage = logo
+        }
         setupStatusItem()
         
         // Listen to screen changes (plugging in / unplugging external monitors)
