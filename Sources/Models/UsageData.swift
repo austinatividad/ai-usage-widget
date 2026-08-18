@@ -1,7 +1,8 @@
 import Foundation
+import SwiftUI
 
 public enum QuotaFormat: Sendable, Equatable {
-    case percentUsed       // Claude style: e.g. 0% used, 24% used
+    case percentUsed       // Claude/Codex style: e.g. 0% used, 24% used
     case percentRemaining  // Antigravity style: e.g. 81% remaining, 97% remaining
 }
 
@@ -53,7 +54,7 @@ public struct WindowUsage: Sendable, Equatable {
     }
 }
 
-public struct ProviderUsage: Sendable, Equatable {
+public struct ProviderUsage: Sendable, Equatable, Identifiable {
     public let id: String
     public let name: String
     public let format: QuotaFormat
@@ -61,4 +62,22 @@ public struct ProviderUsage: Sendable, Equatable {
     public let activityStatus: ActivityStatus
     public let usage5H: WindowUsage
     public let usage7D: WindowUsage
+    
+    public init(
+        id: String,
+        name: String,
+        format: QuotaFormat,
+        summaryLabel: String,
+        activityStatus: ActivityStatus,
+        usage5H: WindowUsage,
+        usage7D: WindowUsage
+    ) {
+        self.id = id
+        self.name = name
+        self.format = format
+        self.summaryLabel = summaryLabel
+        self.activityStatus = activityStatus
+        self.usage5H = usage5H
+        self.usage7D = usage7D
+    }
 }

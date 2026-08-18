@@ -4,9 +4,10 @@ import Security
 
 @MainActor
 public final class UsageTracker: ObservableObject {
-    @Published public private(set) var claudeUsage: ProviderUsage
-    @Published public private(set) var antigravityUsage: ProviderUsage
+    @Published public private(set) var activeProviders: [ProviderUsage] = []
     @Published public private(set) var isRefreshing: Bool = false
+    
+    public let registry = ProviderRegistry.shared
     
     private var timer: Timer?
     private var quotaTimer: Timer?
@@ -24,11 +25,21 @@ public final class UsageTracker: ObservableObject {
     private var agyWeekReset: Date
     private var agy5HPercentRemaining: Double = 0.6033
     private var agy7DPercentRemaining: Double = 0.9308
+    
+    private var codex5HReset: Date
+    private var codexWeekReset: Date
+    private var codex5HPercentUsed: Double = 0.08
+    private var codex7DPercentUsed: Double = 0.35
+
+    public var widgetHeight: CGFloat {
+        let count = max(1, activeProviders.count)
+        return CGFloat(55 + (60 * count))
+    }
 
     public init() {
         let now = Date()
-        
         let calendar = Calendar.current
+        
         var comp = calendar.dateComponents([.year, .month, .day], from: now)
         comp.hour = 0
         comp.minute = 30
@@ -49,30 +60,10 @@ public final class UsageTracker: ObservableObject {
         self.agy5HReset = now.addingTimeInterval(2 * 3600 + 12 * 60)
         self.agyWeekReset = now.addingTimeInterval(165 * 3600 + 12 * 60)
         
-        let claudeStatus = SessionDetector.detectClaudeStatus()
-        let agyStatus = SessionDetector.detectAntigravityStatus()
+        self.codex5HReset = now.addingTimeInterval(4 * 3600 + 45 * 60)
+        self.codexWeekReset = now.addingTimeInterval(140 * 3600)
         
-        self.claudeUsage = ProviderUsage(
-            id: "claude",
-            name: "Claude Code",
-            format: .percentUsed,
-            summaryLabel: "0% used",
-            activityStatus: claudeStatus,
-            usage5H: WindowUsage(label: "5H", progress: 0.0, format: .percentUsed, resetDate: c5hTarget),
-            usage7D: WindowUsage(label: "7D", progress: 0.24, format: .percentUsed, resetDate: calendar.date(from: weekComp))
-        )
-        
-        self.antigravityUsage = ProviderUsage(
-            id: "antigravity",
-            name: "Antigravity",
-            format: .percentRemaining,
-            summaryLabel: "\(Int(round(agy5HPercentRemaining * 100)))% rem",
-            activityStatus: agyStatus,
-            usage5H: WindowUsage(label: "5H", progress: agy5HPercentRemaining, format: .percentRemaining, resetDate: agy5HReset),
-            usage7D: WindowUsage(label: "7D", progress: agy7DPercentRemaining, format: .percentRemaining, resetDate: agyWeekReset)
-        )
-        
-        syncWithLocalActivity()
+        recomputeWindows()
         startTimer()
         setupEventDrivenFileWatchers()
         
@@ -94,6 +85,11 @@ public final class UsageTracker: ObservableObject {
 
     public func fetchLiveQuotas() {
         fetchLiveQuotasAsync()
+    }
+
+    public func updateEnabledProviders() {
+        recomputeWindows()
+        setupEventDrivenFileWatchers()
     }
 
     private func fetchLiveQuotasAsync() {
@@ -138,14 +134,24 @@ public final class UsageTracker: ObservableObject {
     }
 
     private func setupEventDrivenFileWatchers() {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let pathsToWatch = [
-            home.appendingPathComponent(".claude/sessions").path,
-            home.appendingPathComponent(".claude").path,
-            home.appendingPathComponent(".gemini/antigravity-cli/conversations").path,
-            home.appendingPathComponent(".gemini/antigravity-cli/presence").path,
-            home.appendingPathComponent(".gemini/antigravity-cli").path
-        ]
+        // Clear existing watchers
+        for w in fileWatchers {
+            w.cancel()
+        }
+        fileWatchers.removeAll()
+        for fd in fileDescriptors {
+            close(fd)
+        }
+        fileDescriptors.removeAll()
+        
+        var pathsToWatch: Set<String> = []
+        for provider in registry.allProviders where registry.isEnabled(id: provider.id) {
+            for path in provider.monitoredPaths {
+                if FileManager.default.fileExists(atPath: path) {
+                    pathsToWatch.insert(path)
+                }
+            }
+        }
         
         for path in pathsToWatch {
             let fd = open(path, O_EVTONLY)
@@ -193,68 +199,96 @@ public final class UsageTracker: ObservableObject {
         if agy5HReset <= now {
             agy5HReset = now.addingTimeInterval(5 * 3600)
         }
+        if codex5HReset <= now {
+            codex5HReset = now.addingTimeInterval(5 * 3600)
+        }
         
         recomputeWindows()
     }
 
     private func recomputeWindows() {
-        let claudeStatus = SessionDetector.detectClaudeStatus()
-        let agyStatus = SessionDetector.detectAntigravityStatus()
+        var computed: [ProviderUsage] = []
         
-        // 1. Claude Code
-        let c5hUsage = WindowUsage(
-            label: "5H",
-            progress: claude5HPercentUsed,
-            format: .percentUsed,
-            resetDate: claudeSessionReset
-        )
-        let c7dUsage = WindowUsage(
-            label: "7D",
-            progress: claude7DPercentUsed,
-            format: .percentUsed,
-            resetDate: claudeWeekReset
-        )
-        
-        let newClaudeUsage = ProviderUsage(
-            id: "claude",
-            name: "Claude Code",
-            format: .percentUsed,
-            summaryLabel: "\(Int(round(claude7DPercentUsed * 100)))% used",
-            activityStatus: claudeStatus,
-            usage5H: c5hUsage,
-            usage7D: c7dUsage
-        )
-        
-        if self.claudeUsage != newClaudeUsage {
-            self.claudeUsage = newClaudeUsage
+        for provider in registry.allProviders where registry.isEnabled(id: provider.id) {
+            let status = provider.detectSessionStatus()
+            
+            switch provider.id {
+            case "claude":
+                let c5hUsage = WindowUsage(
+                    label: "5H",
+                    progress: claude5HPercentUsed,
+                    format: .percentUsed,
+                    resetDate: claudeSessionReset
+                )
+                let c7dUsage = WindowUsage(
+                    label: "7D",
+                    progress: claude7DPercentUsed,
+                    format: .percentUsed,
+                    resetDate: claudeWeekReset
+                )
+                computed.append(ProviderUsage(
+                    id: "claude",
+                    name: provider.displayName,
+                    format: .percentUsed,
+                    summaryLabel: "\(Int(round(claude7DPercentUsed * 100)))% used",
+                    activityStatus: status,
+                    usage5H: c5hUsage,
+                    usage7D: c7dUsage
+                ))
+                
+            case "antigravity":
+                let a5hUsage = WindowUsage(
+                    label: "5H",
+                    progress: agy5HPercentRemaining,
+                    format: .percentRemaining,
+                    resetDate: agy5HReset
+                )
+                let a7dUsage = WindowUsage(
+                    label: "7D",
+                    progress: agy7DPercentRemaining,
+                    format: .percentRemaining,
+                    resetDate: agyWeekReset
+                )
+                computed.append(ProviderUsage(
+                    id: "antigravity",
+                    name: provider.displayName,
+                    format: .percentRemaining,
+                    summaryLabel: "\(Int(round(agy5HPercentRemaining * 100)))% rem",
+                    activityStatus: status,
+                    usage5H: a5hUsage,
+                    usage7D: a7dUsage
+                ))
+                
+            case "codex":
+                let x5hUsage = WindowUsage(
+                    label: "5H",
+                    progress: codex5HPercentUsed,
+                    format: .percentUsed,
+                    resetDate: codex5HReset
+                )
+                let x7dUsage = WindowUsage(
+                    label: "7D",
+                    progress: codex7DPercentUsed,
+                    format: .percentUsed,
+                    resetDate: codexWeekReset
+                )
+                computed.append(ProviderUsage(
+                    id: "codex",
+                    name: provider.displayName,
+                    format: .percentUsed,
+                    summaryLabel: "\(Int(round(codex7DPercentUsed * 100)))% used",
+                    activityStatus: status,
+                    usage5H: x5hUsage,
+                    usage7D: x7dUsage
+                ))
+                
+            default:
+                break
+            }
         }
         
-        // 2. Antigravity
-        let a5hUsage = WindowUsage(
-            label: "5H",
-            progress: agy5HPercentRemaining,
-            format: .percentRemaining,
-            resetDate: agy5HReset
-        )
-        let a7dUsage = WindowUsage(
-            label: "7D",
-            progress: agy7DPercentRemaining,
-            format: .percentRemaining,
-            resetDate: agyWeekReset
-        )
-        
-        let newAgyUsage = ProviderUsage(
-            id: "antigravity",
-            name: "Antigravity",
-            format: .percentRemaining,
-            summaryLabel: "\(Int(round(agy5HPercentRemaining * 100)))% rem",
-            activityStatus: agyStatus,
-            usage5H: a5hUsage,
-            usage7D: a7dUsage
-        )
-        
-        if self.antigravityUsage != newAgyUsage {
-            self.antigravityUsage = newAgyUsage
+        if self.activeProviders != computed {
+            self.activeProviders = computed
         }
     }
 }

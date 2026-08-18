@@ -13,50 +13,32 @@ public struct WidgetContent: View {
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // MARK: - Claude Code Section (% Used)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 7) {
-                    ClaudeIconView(size: 14)
-                    Text("Claude Code")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
+            // Dynamic Providers List
+            ForEach(tracker.activeProviders) { provider in
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 7) {
+                        providerIcon(id: provider.id)
+                        Text(provider.name)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        headerStatusBadge(usage: provider)
+                    }
                     
-                    Spacer()
+                    // 5H Row
+                    usageRow(usage: provider.usage5H, fillColor: providerFillColor(id: provider.id))
                     
-                    headerStatusBadge(usage: tracker.claudeUsage)
+                    // 7D Row
+                    usageRow(usage: provider.usage7D, fillColor: providerFillColor(id: provider.id))
                 }
-                
-                // 5H Row
-                usageRow(usage: tracker.claudeUsage.usage5H, fillColor: .white)
-                
-                // 7D Row
-                usageRow(usage: tracker.claudeUsage.usage7D, fillColor: .white)
-            }
-            
-            // MARK: - Antigravity Section (% Remaining)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 7) {
-                    AntigravityIconView(size: 14)
-                    Text("Antigravity")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    headerStatusBadge(usage: tracker.antigravityUsage)
-                }
-                
-                // 5H Row
-                usageRow(usage: tracker.antigravityUsage.usage5H, fillColor: Color(red: 142/255, green: 188/255, blue: 110/255))
-                
-                // 7D Row
-                usageRow(usage: tracker.antigravityUsage.usage7D, fillColor: Color(red: 142/255, green: 188/255, blue: 110/255))
             }
             
             if showRefresh {
                 Spacer(minLength: 2)
                 
-                // MARK: - Bottom Controls
+                // Bottom Controls
                 HStack {
                     Button(action: {
                         withAnimation(.easeInOut(duration: 0.5)) {
@@ -74,6 +56,36 @@ public struct WidgetContent: View {
                     Spacer()
                 }
             }
+        }
+    }
+    
+    @ViewBuilder
+    private func providerIcon(id: String) -> some View {
+        switch id {
+        case "claude":
+            ClaudeIconView(size: 14)
+        case "antigravity":
+            AntigravityIconView(size: 14)
+        case "codex":
+            CodexIconView(size: 14)
+        default:
+            Image(systemName: "cpu")
+                .resizable()
+                .frame(width: 14, height: 14)
+                .foregroundColor(.white)
+        }
+    }
+    
+    private func providerFillColor(id: String) -> Color {
+        switch id {
+        case "claude":
+            return .white
+        case "antigravity":
+            return Color(red: 142/255, green: 188/255, blue: 110/255)
+        case "codex":
+            return Color(red: 16/255, green: 163/255, blue: 127/255)
+        default:
+            return .white
         }
     }
     
@@ -110,7 +122,20 @@ public struct WidgetContent: View {
         case .inactive:
             Text(usage.summaryLabel)
                 .font(.system(size: 10.5, weight: .medium))
-                .foregroundColor(usage.id == "claude" ? Color(white: 0.55) : Color(red: 142/255, green: 188/255, blue: 110/255))
+                .foregroundColor(providerSummaryColor(id: usage.id))
+        }
+    }
+    
+    private func providerSummaryColor(id: String) -> Color {
+        switch id {
+        case "claude":
+            return Color(white: 0.55)
+        case "antigravity":
+            return Color(red: 142/255, green: 188/255, blue: 110/255)
+        case "codex":
+            return Color(red: 16/255, green: 163/255, blue: 127/255)
+        default:
+            return Color(white: 0.6)
         }
     }
     
@@ -152,7 +177,7 @@ public struct WidgetView: View {
             .padding(.horizontal, 22)
             .padding(.top, 18)
             .padding(.bottom, 16)
-            .frame(width: 350, height: 175)
+            .frame(width: 350, height: tracker.widgetHeight)
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -166,7 +191,16 @@ public struct WidgetView: View {
                 }
             )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .animation(.easeInOut(duration: 0.25), value: tracker.widgetHeight)
             .contextMenu {
+                Button(action: {
+                    WidgetWindowManager.shared.openProviderSettings()
+                }) {
+                    Label("Manage Providers...", systemImage: "slider.horizontal.3")
+                }
+                
+                Divider()
+                
                 Button(action: {
                     WidgetWindowManager.shared.togglePinOnTop()
                 }) {
@@ -200,7 +234,7 @@ public struct WidgetView: View {
                 Button(action: {
                     tracker.refresh()
                 }) {
-                    Label("Refresh Now", systemImage: "arrow.clockwise")
+                    Label("Refresh Now (⌘R)", systemImage: "arrow.clockwise")
                 }
                 
                 Button(action: {

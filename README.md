@@ -1,6 +1,6 @@
 # AI Usage Widget for macOS
 
-AI Usage Widget is a native macOS desktop utility that monitors rate limits and session statuses for Claude Code and Antigravity.
+AI Usage Widget is a native macOS desktop utility that monitors rate limits and session statuses for Claude Code, Antigravity, and Codex CLI.
 
 ---
 
@@ -8,25 +8,35 @@ AI Usage Widget is a native macOS desktop utility that monitors rate limits and 
 
 The application displays real-time quota consumption and active session states in two interface formats:
 1. A desktop widget with adjustable window levels.
-2. A Dynamic Island panel that expands from the display notch area on mouse hover.
+2. A Dynamic Island panel that expands from the display notch area on pointer hover.
 
 ---
 
 ## Features
+
+### Supported AI Providers
+- **Claude Code**: Tracks 5-hour rolling session limits and 7-day weekly quotas as percentage consumed.
+- **Antigravity**: Tracks 5-hour rolling session limits and 7-day weekly quotas as percentage available via live Google API sync.
+- **Codex CLI**: Tracks 5-hour rolling windows and plan quotas as percentage consumed with local process monitoring.
 
 ### Display Notch Integration
 - Expands automatically when the pointer enters the display notch area.
 - Supports multi-display configurations and updates dynamically when displays connect or disconnect.
 - Remains hidden when inactive.
 
+### Provider Management Window
+- Configure active providers via a dedicated settings window (`⌘,` or secondary click menu).
+- Displays installation status (`Detected` vs `Not Found`) for each supported CLI tool.
+- Dynamically resizes the widget and notch dropdown based on the number of enabled providers.
+
+### First-Time Onboarding
+- Scans the system on first launch to detect installed AI tools automatically.
+- Provides clear, step-by-step guidance for macOS Keychain permissions.
+
 ### Real-Time Session Monitoring
 - Identifies active command execution, approval prompts, and idle processes.
 - Prioritizes actionable states when multiple terminal sessions operate concurrently.
 - Uses POSIX system calls to verify process status without background polling overhead.
-
-### Quota Tracking
-- **Claude Code**: Tracks 5-hour rolling session limits and 7-day weekly quotas as percentage consumed.
-- **Antigravity**: Tracks 5-hour rolling session limits and 7-day weekly quotas as percentage available.
 
 ### Window Management
 - **Desktop Level**: Anchors below standard application windows directly above the desktop wallpaper.
@@ -57,9 +67,10 @@ The application displays real-time quota consumption and active session states i
 
 | Function | Method | Description |
 |---|---|---|
-| Process Detection | `kill(pid, 0)` | Checks process table status for active Claude Code processes. |
-| Lock Monitoring | `flock(fd, LOCK_EX \| LOCK_NB)` | Probes kernel file locks in the Antigravity presence directory. |
-| Event Monitoring | `DispatchSourceFileSystemObject` | Receives kernel filesystem events with 80 ms event coalescing. |
+| Provider Protocol | `AIProvider` | Extensible interface contract for AI tool monitoring. |
+| Process Detection | `kill(pid, 0)` | Checks process table status for active CLI processes. |
+| Lock Monitoring | `flock(fd, LOCK_EX \| LOCK_NB)` | Probes kernel file locks in presence directories. |
+| Event Monitoring | `DispatchSourceFileSystemObject` | Receives kernel filesystem events with 80 ms coalescing. |
 | Window Leveling | `NSWindow.Level` | Sets window priority to `.desktopIconWindow + 1` or `.floating`. |
 
 ---
@@ -114,22 +125,29 @@ ai-usage-widget/
 ├── Package.swift                     # Swift Package Manager manifest
 ├── scripts/
 │   └── bundle-app.sh                 # Application bundling script
+├── docs/
+│   └── plans/                        # Architectural specifications
 ├── Sources/
 │   ├── main.swift                    # Application entry point
 │   ├── Models/
+│   │   ├── AIProvider.swift          # Universal AI provider protocol and registry
 │   │   ├── UsageData.swift           # Quota data models
 │   │   ├── SessionDetector.swift     # Process and file lock detection
-│   │   └── UsageTracker.swift        # Rolling quota calculations and file monitors
+│   │   ├── QuotaService.swift        # Live authenticated quota synchronization
+│   │   └── UsageTracker.swift        # Dynamic quota tracker and event monitors
 │   ├── Views/
 │   │   ├── WidgetView.swift          # Main widget layout and context menu
 │   │   ├── NotchIslandView.swift     # Display notch expansion view
+│   │   ├── OnboardingView.swift      # Initial setup and provider selection
+│   │   ├── ProviderSettingsView.swift# Provider configuration modal window
 │   │   ├── UsageProgressBar.swift    # Quota progress bar component
-│   │   └── VectorIcons.swift         # Vector icon assets
+│   │   └── VectorIcons.swift         # Vector icon assets (Claude, AGY, Codex)
 │   ├── Window/
 │   │   └── WidgetWindowManager.swift # Window controller and menu bar item
 │   └── Resources/
 │       ├── claude.svg                # Claude vector asset
-│       └── antigravity.svg           # Antigravity vector asset
+│       ├── antigravity.svg           # Antigravity vector asset
+│       └── codex.svg                 # Codex vector asset
 └── README.md
 ```
 

@@ -10,6 +10,10 @@ public struct NotchIslandView: View {
     private let notchWidth: CGFloat = 180
     private let notchHeight: CGFloat = 32
     
+    private var expandedHeight: CGFloat {
+        return tracker.widgetHeight + 30
+    }
+    
     public init(tracker: UsageTracker) {
         self.tracker = tracker
     }
@@ -23,7 +27,7 @@ public struct NotchIslandView: View {
             .padding(.horizontal, 22)
             .padding(.top, 48)
             .padding(.bottom, 16)
-            .frame(width: 350, height: 206)
+            .frame(width: 350, height: expandedHeight)
             .background(
                 ZStack {
                     UnevenRoundedRectangle(
@@ -63,7 +67,7 @@ public struct NotchIslandView: View {
                     style: .continuous
                 )
             )
-            .offset(y: isExpanded ? 0 : -210)
+            .offset(y: isExpanded ? 0 : -(expandedHeight + 10))
             .opacity(isExpanded ? 1.0 : 0.0)
             .allowsHitTesting(isExpanded)
             .onHover { hovering in
@@ -80,7 +84,7 @@ public struct NotchIslandView: View {
                     }
             }
         }
-        .frame(width: 350, height: isExpanded ? 206 : notchHeight, alignment: .top)
+        .frame(width: 350, height: isExpanded ? expandedHeight : notchHeight, alignment: .top)
     }
     
     private func handleHover(_ hovering: Bool) {

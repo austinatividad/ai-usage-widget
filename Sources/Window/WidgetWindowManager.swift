@@ -8,6 +8,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
     
     private var window: NSWindow?
     private var onboardingWindow: NSWindow?
+    private var settingsWindow: NSWindow?
     private var notchWindows: [NSWindow] = []
     private var statusItem: NSStatusItem?
     private let tracker = UsageTracker()
@@ -53,6 +54,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         menu.addItem(titleItem)
         menu.addItem(NSMenuItem.separator())
         
+        menu.addItem(NSMenuItem(title: "Manage Providers...", action: #selector(openProviderSettingsAction), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Refresh Now", action: #selector(refreshAction), keyEquivalent: "r"))
         menu.addItem(NSMenuItem(title: "Toggle Visibility", action: #selector(toggleVisibility), keyEquivalent: "v"))
         menu.addItem(NSMenuItem(title: "Reset Position to Center", action: #selector(resetPosition), keyEquivalent: "0"))
@@ -83,6 +85,62 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         statusItem?.menu = menu
     }
 
+    public func openProviderSettings() {
+        if let existing = settingsWindow {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        guard let screen = NSScreen.main else { return }
+        let screenRect = screen.visibleFrame
+        
+        let settingsView = ProviderSettingsView(tracker: tracker) { [weak self] in
+            self?.settingsWindow?.orderOut(nil)
+            self?.settingsWindow = nil
+            self?.syncWindowFrame()
+        }
+        
+        let hostingView = NSHostingView(rootView: settingsView)
+        hostingView.wantsLayer = true
+        
+        let width: CGFloat = 440
+        let height: CGFloat = 470
+        let x = screenRect.midX - (width / 2)
+        let y = screenRect.midY - (height / 2)
+        
+        let sWindow = NSWindow(
+            contentRect: NSRect(x: x, y: y, width: width, height: height),
+            styleMask: [.borderless, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        
+        sWindow.contentView = hostingView
+        sWindow.isOpaque = false
+        sWindow.backgroundColor = .clear
+        sWindow.hasShadow = false
+        sWindow.level = .floating
+        sWindow.isMovableByWindowBackground = true
+        sWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        self.settingsWindow = sWindow
+    }
+
+    @objc private func openProviderSettingsAction() {
+        openProviderSettings()
+    }
+
+    private func syncWindowFrame() {
+        guard let window = window else { return }
+        var frame = window.frame
+        let newHeight = tracker.widgetHeight
+        let deltaY = newHeight - frame.height
+        frame.size.height = newHeight
+        frame.origin.y -= deltaY // Keep top anchor stable
+        window.setFrame(frame, display: true, animate: true)
+    }
+
     private func showOnboardingWindow() {
         guard let screen = NSScreen.main else { return }
         let screenRect = screen.visibleFrame
@@ -97,8 +155,8 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         let hostingView = NSHostingView(rootView: onboardingView)
         hostingView.wantsLayer = true
         
-        let width: CGFloat = 420
-        let height: CGFloat = 460
+        let width: CGFloat = 440
+        let height: CGFloat = 530
         let x = screenRect.midX - (width / 2)
         let y = screenRect.midY - (height / 2)
         
@@ -129,7 +187,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         let hostingView = NSHostingView(rootView: contentView)
         
         let window = NSWindow(
-            contentRect: NSRect(x: 100, y: 100, width: 350, height: 175),
+            contentRect: NSRect(x: 100, y: 100, width: 350, height: tracker.widgetHeight),
             styleMask: [.borderless, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -183,7 +241,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
             hostingView.wantsLayer = true
             
             let notchWidth: CGFloat = 360
-            let notchHeight: CGFloat = 210
+            let notchHeight: CGFloat = max(210, tracker.widgetHeight + 40)
             let x = screenRect.midX - (notchWidth / 2)
             let y = screenRect.maxY - notchHeight
             
