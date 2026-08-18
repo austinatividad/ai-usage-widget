@@ -6,16 +6,107 @@ public struct LiveQuotaResult: Sendable {
     public let resetDate5H: Date?
     public let percentRemaining7D: Double
     public let resetDate7D: Date?
+    
+    public init(
+        percentRemaining5H: Double,
+        resetDate5H: Date?,
+        percentRemaining7D: Double,
+        resetDate7D: Date?
+    ) {
+        self.percentRemaining5H = percentRemaining5H
+        self.resetDate5H = resetDate5H
+        self.percentRemaining7D = percentRemaining7D
+        self.resetDate7D = resetDate7D
+    }
 }
 
 @MainActor
 public final class QuotaService {
     
-    // In-memory token cache to prevent redundant Keychain prompts
-    private static var cachedToken: String?
-    private static var cachedTokenExpiry: Date?
+    // In-memory token caches
+    private static var cachedAgyToken: String?
+    private static var cachedAgyTokenExpiry: Date?
     
-    // MARK: - Antigravity Live Quota Fetcher
+    private static var cachedClaudeToken: String?
+    private static var cachedClaudeTokenExpiry: Date?
+    
+    // MARK: - 1. Claude Live Quota Fetcher
+    public static func fetchClaudeQuota() async -> LiveQuotaResult? {
+        guard let token = getClaudeToken() else {
+            return nil
+        }
+        
+        guard let url = URL(string: "https://api.anthropic.com/api/oauth/usage") else {
+            return nil
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("claude-code", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 8.0
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResp = response as? HTTPURLResponse else {
+                return nil
+            }
+            
+            if httpResp.statusCode == 401 {
+                cachedClaudeToken = nil
+                cachedClaudeTokenExpiry = nil
+                return nil
+            }
+            
+            guard httpResp.statusCode == 200 else {
+                return nil
+            }
+            
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return nil
+            }
+            
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let fallbackIso = ISO8601DateFormatter()
+            
+            var fiveHourPct: Double = 0.0
+            var fiveHourReset: Date?
+            
+            if let fiveHourObj = json["five_hour"] as? [String: Any] {
+                if let util = fiveHourObj["utilization"] as? Double {
+                    fiveHourPct = util / 100.0
+                }
+                if let resetStr = fiveHourObj["resets_at"] as? String {
+                    fiveHourReset = isoFormatter.date(from: resetStr) ?? fallbackIso.date(from: resetStr)
+                }
+            }
+            
+            var sevenDayPct: Double = 0.0
+            var sevenDayReset: Date?
+            
+            if let sevenDayObj = json["seven_day"] as? [String: Any] {
+                if let util = sevenDayObj["utilization"] as? Double {
+                    sevenDayPct = util / 100.0
+                }
+                if let resetStr = sevenDayObj["resets_at"] as? String {
+                    sevenDayReset = isoFormatter.date(from: resetStr) ?? fallbackIso.date(from: resetStr)
+                }
+            }
+            
+            return LiveQuotaResult(
+                percentRemaining5H: max(0.0, min(1.0, fiveHourPct)),
+                resetDate5H: fiveHourReset,
+                percentRemaining7D: max(0.0, min(1.0, sevenDayPct)),
+                resetDate7D: sevenDayReset
+            )
+        } catch {
+            return nil
+        }
+    }
+    
+    // MARK: - 2. Antigravity Live Quota Fetcher
     public static func fetchAntigravityQuota() async -> LiveQuotaResult? {
         guard let token = getAntigravityToken() else {
             return nil
@@ -44,8 +135,8 @@ public final class QuotaService {
                 
                 // If 401 Unauthorized, invalidate cache
                 if httpResp.statusCode == 401 {
-                    cachedToken = nil
-                    cachedTokenExpiry = nil
+                    cachedAgyToken = nil
+                    cachedAgyTokenExpiry = nil
                     continue
                 }
                 
@@ -101,22 +192,53 @@ public final class QuotaService {
         return nil
     }
     
+    // MARK: - Token Helpers
+    private static func getClaudeToken() -> String? {
+        if let token = cachedClaudeToken, let expiry = cachedClaudeTokenExpiry, expiry > Date() {
+            return token
+        }
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "Claude Code-credentials",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess, let data = item as? Data else {
+            return nil
+        }
+        
+        guard let jsonObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let oauthObj = jsonObj["claudeAiOauth"] as? [String: Any],
+              let accessToken = oauthObj["accessToken"] as? String else {
+            return nil
+        }
+        
+        let expiryDate = Date().addingTimeInterval(3000)
+        cachedClaudeToken = accessToken
+        cachedClaudeTokenExpiry = expiryDate
+        return accessToken
+    }
+    
     private static func getAntigravityToken() -> String? {
         // 1. Check in-memory cache
-        if let token = cachedToken, let expiry = cachedTokenExpiry, expiry > Date() {
+        if let token = cachedAgyToken, let expiry = cachedAgyTokenExpiry, expiry > Date() {
             return token
         }
         
         // 2. Check persistent app support storage cache
-        let cacheFileURL = getAppSupportCacheURL()
+        let cacheFileURL = getAppSupportCacheURL(for: "agy_token.json")
         if let fileData = try? Data(contentsOf: cacheFileURL),
            let cacheJson = try? JSONSerialization.jsonObject(with: fileData) as? [String: Any],
            let savedToken = cacheJson["access_token"] as? String,
            let expirySec = cacheJson["expiry_time"] as? TimeInterval {
             let expiryDate = Date(timeIntervalSince1970: expirySec)
             if expiryDate > Date() {
-                cachedToken = savedToken
-                cachedTokenExpiry = expiryDate
+                cachedAgyToken = savedToken
+                cachedAgyTokenExpiry = expiryDate
                 return savedToken
             }
         }
@@ -157,8 +279,8 @@ public final class QuotaService {
         
         // Save to in-memory cache (valid for 50 minutes)
         let expiryDate = Date().addingTimeInterval(3000)
-        cachedToken = accessToken
-        cachedTokenExpiry = expiryDate
+        cachedAgyToken = accessToken
+        cachedAgyTokenExpiry = expiryDate
         
         // Persist to local app support sandbox
         let saveDict: [String: Any] = [
@@ -172,12 +294,12 @@ public final class QuotaService {
         return accessToken
     }
     
-    private static func getAppSupportCacheURL() -> URL {
+    private static func getAppSupportCacheURL(for filename: String) -> URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let appDir = appSupport.appendingPathComponent("com.ity.tacho", isDirectory: true)
         if !FileManager.default.fileExists(atPath: appDir.path) {
             try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
         }
-        return appDir.appendingPathComponent("token_cache.json")
+        return appDir.appendingPathComponent(filename)
     }
 }

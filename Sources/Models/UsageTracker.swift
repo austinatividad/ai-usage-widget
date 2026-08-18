@@ -117,6 +117,7 @@ public final class UsageTracker: ObservableObject {
 
     private func fetchLiveQuotasAsync() {
         Task {
+            // 1. Antigravity Quota
             if let agyResult = await QuotaService.fetchAntigravityQuota() {
                 self.agy5HPercentRemaining = agyResult.percentRemaining5H
                 if let r5h = agyResult.resetDate5H {
@@ -126,8 +127,21 @@ public final class UsageTracker: ObservableObject {
                 if let r7d = agyResult.resetDate7D {
                     self.agyWeekReset = r7d
                 }
-                self.recomputeWindows()
             }
+            
+            // 2. Claude Code Live Quota
+            if let claudeResult = await QuotaService.fetchClaudeQuota() {
+                self.claude5HPercentUsed = claudeResult.percentRemaining5H
+                if let r5h = claudeResult.resetDate5H {
+                    self.claudeSessionReset = r5h
+                }
+                self.claude7DPercentUsed = claudeResult.percentRemaining7D
+                if let r7d = claudeResult.resetDate7D {
+                    self.claudeWeekReset = r7d
+                }
+            }
+            
+            self.recomputeWindows()
         }
     }
 

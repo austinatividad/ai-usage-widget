@@ -44,7 +44,7 @@ public struct ClaudeProvider: AIProvider {
     }
     
     public func fetchLiveQuota() async -> LiveQuotaResult? {
-        return nil
+        await QuotaService.fetchClaudeQuota()
     }
     
     public func detectSessionStatus() -> ActivityStatus {
