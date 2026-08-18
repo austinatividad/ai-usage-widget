@@ -52,4 +52,8 @@ cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
 EOF
 
 chmod +x "$APP_BUNDLE/Contents/MacOS/AIUsageWidget"
-echo "✅ $APP_NAME successfully created at $APP_BUNDLE"
+
+echo "Signing application bundle with stable identifier..."
+codesign --force --deep --sign - --identifier "com.ity.aiusagewidget" "$APP_BUNDLE"
+
+echo "✅ $APP_NAME successfully created and signed at $APP_BUNDLE"
