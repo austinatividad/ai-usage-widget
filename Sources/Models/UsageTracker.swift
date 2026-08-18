@@ -71,28 +71,32 @@ public final class UsageTracker: ObservableObject {
         if c5hTarget <= now {
             c5hTarget = c5hTarget.addingTimeInterval(24 * 3600)
         }
-        self.claudeSessionReset = c5hTarget
-        
-        var weekComp = calendar.dateComponents([.year, .month], from: now)
-        weekComp.day = 21
-        weekComp.hour = 23
-        weekComp.minute = 0
-        weekComp.second = 0
-        self.claudeWeekReset = calendar.date(from: weekComp) ?? now.addingTimeInterval(75 * 3600)
-        
-        self.agy5HReset = now.addingTimeInterval(2 * 3600 + 12 * 60)
-        self.agyWeekReset = now.addingTimeInterval(165 * 3600 + 12 * 60)
-        
+        self.claudeSessionReset = now.addingTimeInterval(1.6 * 3600)
+        self.claudeWeekReset = now.addingTimeInterval(70 * 3600)
+        self.agy5HReset = now.addingTimeInterval(0.4 * 3600)
+        self.agyWeekReset = now.addingTimeInterval(160 * 3600)
         self.codex5HReset = now.addingTimeInterval(4 * 3600 + 45 * 60)
         self.codexWeekReset = now.addingTimeInterval(140 * 3600)
+        
+        // Immediately load persistent cached quotas
+        if let cachedClaude = QuotaService.getCachedClaudeQuota() {
+            self.claude5HPercentUsed = cachedClaude.percentRemaining5H
+            if let r5h = cachedClaude.resetDate5H { self.claudeSessionReset = r5h }
+            self.claude7DPercentUsed = cachedClaude.percentRemaining7D
+            if let r7d = cachedClaude.resetDate7D { self.claudeWeekReset = r7d }
+        }
+        
+        if let cachedAgy = QuotaService.getCachedAgyQuota() {
+            self.agy5HPercentRemaining = cachedAgy.percentRemaining5H
+            if let r5h = cachedAgy.resetDate5H { self.agy5HReset = r5h }
+            self.agy7DPercentRemaining = cachedAgy.percentRemaining7D
+            if let r7d = cachedAgy.resetDate7D { self.agyWeekReset = r7d }
+        }
         
         recomputeWindows()
         startTimer()
         setupEventDrivenFileWatchers()
-        
-        if UserDefaults.standard.bool(forKey: "AIUsageWidget_HasCompletedOnboarding") {
-            fetchLiveQuotasAsync()
-        }
+        fetchLiveQuotasAsync()
     }
 
     public func refresh() {

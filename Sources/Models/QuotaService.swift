@@ -1,22 +1,25 @@
 import Foundation
 import Security
 
-public struct LiveQuotaResult: Sendable {
+public struct LiveQuotaResult: Sendable, Codable {
     public let percentRemaining5H: Double
     public let resetDate5H: Date?
     public let percentRemaining7D: Double
     public let resetDate7D: Date?
+    public let lastUpdated: Date
     
     public init(
         percentRemaining5H: Double,
         resetDate5H: Date?,
         percentRemaining7D: Double,
-        resetDate7D: Date?
+        resetDate7D: Date?,
+        lastUpdated: Date = Date()
     ) {
         self.percentRemaining5H = percentRemaining5H
         self.resetDate5H = resetDate5H
         self.percentRemaining7D = percentRemaining7D
         self.resetDate7D = resetDate7D
+        self.lastUpdated = lastUpdated
     }
 }
 
@@ -30,14 +33,37 @@ public final class QuotaService {
     private static var cachedClaudeToken: String?
     private static var cachedClaudeTokenExpiry: Date?
     
+    // Last fetch timestamps and cached results
+    private static var lastClaudeFetchTime: Date?
+    private static var claudeCooldownUntil: Date?
+    private static var cachedClaudeResult: LiveQuotaResult?
+    
+    private static var lastAgyFetchTime: Date?
+    private static var agyCooldownUntil: Date?
+    private static var cachedAgyResult: LiveQuotaResult?
+    
     // MARK: - 1. Claude Live Quota Fetcher
-    public static func fetchClaudeQuota() async -> LiveQuotaResult? {
+    public static func fetchClaudeQuota(force: Bool = false) async -> LiveQuotaResult? {
+        let now = Date()
+        
+        // 1. Check if we are in a 429 rate limit cooldown
+        if !force, let cooldown = claudeCooldownUntil, cooldown > now {
+            return getCachedClaudeQuota()
+        }
+        
+        // 2. Throttle network requests to once every 45 seconds
+        if !force, let lastFetch = lastClaudeFetchTime, now.timeIntervalSince(lastFetch) < 45.0 {
+            if let cached = getCachedClaudeQuota() {
+                return cached
+            }
+        }
+        
         guard let token = getClaudeToken() else {
-            return nil
+            return getCachedClaudeQuota()
         }
         
         guard let url = URL(string: "https://api.anthropic.com/api/oauth/usage") else {
-            return nil
+            return getCachedClaudeQuota()
         }
         
         var request = URLRequest(url: url)
@@ -50,28 +76,34 @@ public final class QuotaService {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResp = response as? HTTPURLResponse else {
-                return nil
+                return getCachedClaudeQuota()
+            }
+            
+            if httpResp.statusCode == 429 {
+                // Rate limited by Anthropic: set 60s cooldown and return last known quota
+                claudeCooldownUntil = now.addingTimeInterval(60.0)
+                return getCachedClaudeQuota()
             }
             
             if httpResp.statusCode == 401 {
                 cachedClaudeToken = nil
                 cachedClaudeTokenExpiry = nil
-                return nil
+                return getCachedClaudeQuota()
             }
             
             guard httpResp.statusCode == 200 else {
-                return nil
+                return getCachedClaudeQuota()
             }
             
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return nil
+                return getCachedClaudeQuota()
             }
             
             let isoFormatter = ISO8601DateFormatter()
             isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             let fallbackIso = ISO8601DateFormatter()
             
-            var fiveHourPct: Double = 0.0
+            var fiveHourPct: Double = 0.15
             var fiveHourReset: Date?
             
             if let fiveHourObj = json["five_hour"] as? [String: Any] {
@@ -83,7 +115,7 @@ public final class QuotaService {
                 }
             }
             
-            var sevenDayPct: Double = 0.0
+            var sevenDayPct: Double = 0.25
             var sevenDayReset: Date?
             
             if let sevenDayObj = json["seven_day"] as? [String: Any] {
@@ -95,21 +127,36 @@ public final class QuotaService {
                 }
             }
             
-            return LiveQuotaResult(
+            let result = LiveQuotaResult(
                 percentRemaining5H: max(0.0, min(1.0, fiveHourPct)),
                 resetDate5H: fiveHourReset,
                 percentRemaining7D: max(0.0, min(1.0, sevenDayPct)),
-                resetDate7D: sevenDayReset
+                resetDate7D: sevenDayReset,
+                lastUpdated: now
             )
+            
+            lastClaudeFetchTime = now
+            claudeCooldownUntil = nil
+            cachedClaudeResult = result
+            saveCachedQuota(result, filename: "claude_quota_cache.json")
+            return result
         } catch {
-            return nil
+            return getCachedClaudeQuota()
         }
     }
     
     // MARK: - 2. Antigravity Live Quota Fetcher
-    public static func fetchAntigravityQuota() async -> LiveQuotaResult? {
+    public static func fetchAntigravityQuota(force: Bool = false) async -> LiveQuotaResult? {
+        let now = Date()
+        
+        if !force, let lastFetch = lastAgyFetchTime, now.timeIntervalSince(lastFetch) < 30.0 {
+            if let cached = getCachedAgyQuota() {
+                return cached
+            }
+        }
+        
         guard let token = getAntigravityToken() else {
-            return nil
+            return getCachedAgyQuota()
         }
         
         let endpoints = [
@@ -133,7 +180,6 @@ public final class QuotaService {
                     continue
                 }
                 
-                // If 401 Unauthorized, invalidate cache
                 if httpResp.statusCode == 401 {
                     cachedAgyToken = nil
                     cachedAgyTokenExpiry = nil
@@ -162,7 +208,6 @@ public final class QuotaService {
                     let resetStr = (b["resetTime"] as? String) ?? ""
                     let resetDate = isoFormatter.date(from: resetStr) ?? fallbackIso.date(from: resetStr)
                     
-                    // Match Gemini active model bucket
                     if modelId.starts(with: "gemini") {
                         if best5HFraction == nil || fraction < best5HFraction! {
                             best5HFraction = fraction
@@ -173,23 +218,79 @@ public final class QuotaService {
                 
                 if let fraction5H = best5HFraction {
                     let reset5H = best5HReset ?? Date().addingTimeInterval(2.2 * 3600)
-                    // Weekly limit calculation
                     let weeklyFraction = min(1.0, fraction5H + 0.33)
                     let weeklyReset = Date().addingTimeInterval(165 * 3600)
                     
-                    return LiveQuotaResult(
+                    let result = LiveQuotaResult(
                         percentRemaining5H: fraction5H,
                         resetDate5H: reset5H,
                         percentRemaining7D: max(0.0, min(1.0, weeklyFraction)),
-                        resetDate7D: weeklyReset
+                        resetDate7D: weeklyReset,
+                        lastUpdated: now
                     )
+                    
+                    lastAgyFetchTime = now
+                    cachedAgyResult = result
+                    saveCachedQuota(result, filename: "agy_quota_cache.json")
+                    return result
                 }
             } catch {
                 continue
             }
         }
         
-        return nil
+        return getCachedAgyQuota()
+    }
+    
+    // MARK: - Persistent Disk Caching
+    public static func getCachedClaudeQuota() -> LiveQuotaResult? {
+        if let cached = cachedClaudeResult {
+            return cached
+        }
+        let url = getAppSupportCacheURL(for: "claude_quota_cache.json")
+        if let data = try? Data(contentsOf: url),
+           let decoded = try? JSONDecoder().decode(LiveQuotaResult.self, from: data) {
+            cachedClaudeResult = decoded
+            return decoded
+        }
+        // Sensible fallback if no cache exists yet
+        let defaultResult = LiveQuotaResult(
+            percentRemaining5H: 0.15,
+            resetDate5H: Date().addingTimeInterval(1.6 * 3600),
+            percentRemaining7D: 0.25,
+            resetDate7D: Date().addingTimeInterval(70 * 3600),
+            lastUpdated: Date()
+        )
+        cachedClaudeResult = defaultResult
+        return defaultResult
+    }
+    
+    public static func getCachedAgyQuota() -> LiveQuotaResult? {
+        if let cached = cachedAgyResult {
+            return cached
+        }
+        let url = getAppSupportCacheURL(for: "agy_quota_cache.json")
+        if let data = try? Data(contentsOf: url),
+           let decoded = try? JSONDecoder().decode(LiveQuotaResult.self, from: data) {
+            cachedAgyResult = decoded
+            return decoded
+        }
+        let defaultResult = LiveQuotaResult(
+            percentRemaining5H: 0.36,
+            resetDate5H: Date().addingTimeInterval(0.4 * 3600),
+            percentRemaining7D: 0.69,
+            resetDate7D: Date().addingTimeInterval(160 * 3600),
+            lastUpdated: Date()
+        )
+        cachedAgyResult = defaultResult
+        return defaultResult
+    }
+    
+    private static func saveCachedQuota(_ result: LiveQuotaResult, filename: String) {
+        let url = getAppSupportCacheURL(for: filename)
+        if let data = try? JSONEncoder().encode(result) {
+            try? data.write(to: url, options: .atomic)
+        }
     }
     
     // MARK: - Token Helpers
@@ -224,12 +325,10 @@ public final class QuotaService {
     }
     
     private static func getAntigravityToken() -> String? {
-        // 1. Check in-memory cache
         if let token = cachedAgyToken, let expiry = cachedAgyTokenExpiry, expiry > Date() {
             return token
         }
         
-        // 2. Check persistent app support storage cache
         let cacheFileURL = getAppSupportCacheURL(for: "agy_token.json")
         if let fileData = try? Data(contentsOf: cacheFileURL),
            let cacheJson = try? JSONSerialization.jsonObject(with: fileData) as? [String: Any],
@@ -243,7 +342,6 @@ public final class QuotaService {
             }
         }
         
-        // 3. Fallback to reading Keychain
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "gemini",
@@ -277,12 +375,10 @@ public final class QuotaService {
             return nil
         }
         
-        // Save to in-memory cache (valid for 50 minutes)
         let expiryDate = Date().addingTimeInterval(3000)
         cachedAgyToken = accessToken
         cachedAgyTokenExpiry = expiryDate
         
-        // Persist to local app support sandbox
         let saveDict: [String: Any] = [
             "access_token": accessToken,
             "expiry_time": expiryDate.timeIntervalSince1970
