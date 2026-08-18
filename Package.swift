@@ -2,16 +2,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "AIUsageWidget",
+    name: "tacho",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "AIUsageWidget", targets: ["AIUsageWidget"])
+        .executable(name: "tacho", targets: ["tacho"])
     ],
     targets: [
         .executableTarget(
-            name: "AIUsageWidget",
+            name: "tacho",
             path: "Sources",
             resources: [
                 .process("Resources")

@@ -50,7 +50,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
     
     public func updateMenu() {
         let menu = NSMenu()
-        let titleItem = NSMenuItem(title: "AI Usage Widget", action: nil, keyEquivalent: "")
+        let titleItem = NSMenuItem(title: "tacho", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         menu.addItem(titleItem)
         menu.addItem(NSMenuItem.separator())

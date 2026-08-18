@@ -7,7 +7,7 @@ cd "$DIR"
 echo "Building release binary..."
 swift build -c release
 
-APP_NAME="AIUsageWidget.app"
+APP_NAME="tacho.app"
 BUILD_DIR="$DIR/.build/arm64-apple-macosx/release"
 APP_BUNDLE="$DIR/$APP_NAME"
 
@@ -16,10 +16,12 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
-cp "$BUILD_DIR/AIUsageWidget" "$APP_BUNDLE/Contents/MacOS/AIUsageWidget"
+cp "$BUILD_DIR/tacho" "$APP_BUNDLE/Contents/MacOS/tacho"
 
 # Copy resource bundle if it exists
-if [ -d "$BUILD_DIR/AIUsageWidget_AIUsageWidget.bundle" ]; then
+if [ -d "$BUILD_DIR/tacho_tacho.bundle" ]; then
+    cp -R "$BUILD_DIR/tacho_tacho.bundle" "$APP_BUNDLE/Contents/Resources/"
+elif [ -d "$BUILD_DIR/AIUsageWidget_AIUsageWidget.bundle" ]; then
     cp -R "$BUILD_DIR/AIUsageWidget_AIUsageWidget.bundle" "$APP_BUNDLE/Contents/Resources/"
 fi
 
@@ -30,13 +32,13 @@ cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>AIUsageWidget</string>
+    <string>tacho</string>
     <key>CFBundleIdentifier</key>
-    <string>com.ity.aiusagewidget</string>
+    <string>com.ity.tacho</string>
     <key>CFBundleName</key>
-    <string>AI Usage</string>
+    <string>tacho</string>
     <key>CFBundleDisplayName</key>
-    <string>AI Usage Widget</string>
+    <string>tacho</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -51,9 +53,9 @@ cat <<EOF > "$APP_BUNDLE/Contents/Info.plist"
 </plist>
 EOF
 
-chmod +x "$APP_BUNDLE/Contents/MacOS/AIUsageWidget"
+chmod +x "$APP_BUNDLE/Contents/MacOS/tacho"
 
 echo "Signing application bundle with stable identifier..."
-codesign --force --deep --sign - --identifier "com.ity.aiusagewidget" "$APP_BUNDLE"
+codesign --force --deep --sign - --identifier "com.ity.tacho" "$APP_BUNDLE"
 
 echo "✅ $APP_NAME successfully created and signed at $APP_BUNDLE"

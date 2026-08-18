@@ -25,7 +25,7 @@ public struct ProviderSettingsView: View {
             // Header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("AI Widget Settings")
+                    Text("tacho Settings")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
                     

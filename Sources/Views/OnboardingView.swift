@@ -28,7 +28,7 @@ public struct OnboardingView: View {
                     Spacer()
                 }
                 
-                Text("AI Usage Widget Setup")
+                Text("tacho Setup")
                     .font(.system(size: 17, weight: .bold))
                     .foregroundColor(.white)
                 

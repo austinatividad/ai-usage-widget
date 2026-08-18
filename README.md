@@ -1,23 +1,29 @@
-# AI Usage Widget for macOS
+# tacho
 
-AI Usage Widget is a native macOS desktop utility that monitors rate limits and session statuses for Claude Code, Antigravity, and Codex CLI.
+`tacho` is a native macOS desktop utility and Dynamic Island HUD that monitors real-time rate limits, token allowances, and live session turn states for Claude Code, Antigravity, and Codex CLI.
 
 ---
 
 ## Overview
 
-The application displays real-time quota consumption and active session states in two interface formats:
-1. A desktop widget with adjustable window levels.
-2. A Dynamic Island panel that expands from the display notch area on pointer hover.
+`tacho` displays real-time quota consumption and active session states across two interface formats:
+1. A desktop widget with adjustable window levels and 4 selectable layout modes.
+2. A Dynamic Island panel that expands from the display notch on pointer hover.
 
 ---
 
 ## Features
 
 ### Supported AI Providers
-- **Claude Code**: Tracks 5-hour rolling session limits and 7-day weekly quotas as percentage consumed.
-- **Antigravity**: Tracks 5-hour rolling session limits and 7-day weekly quotas as percentage available via live Google API sync.
-- **Codex CLI**: Tracks 5-hour rolling windows and plan quotas as percentage consumed with local process monitoring.
+- **Claude Code**: Monitors 5-hour rolling session limits and 7-day weekly quotas as percentage consumed.
+- **Antigravity**: Monitors 5-hour rolling session limits and 7-day weekly quotas as percentage available through live Google API synchronization.
+- **Codex CLI**: Monitors 5-hour rolling windows and plan quotas as percentage consumed with local process tracking.
+
+### 4 Selectable Display Modes
+- **Standard**: Detailed dual-row progress bars with reset countdown timers (`350 pt × 152 pt`).
+- **Compact Inline**: Single-line horizontal rows with side-by-side micro-bars (`260 pt × 80 pt`).
+- **Micro Stack**: Ultra-narrow vertical layout designed for screen corners (`195 pt × 126 pt`).
+- **Hover Expand**: Displays in Compact Inline mode by default; expands to Standard mode on pointer hover.
 
 ### Display Notch Integration
 - Expands automatically when the pointer enters the display notch area.
@@ -85,9 +91,9 @@ The application displays real-time quota consumption and active session states i
 ## Installation
 
 ### Download Pre-built Binary
-1. Download `AIUsageWidget-v0.0.1-macos-arm64.zip` from the [Latest Release](https://github.com/austinatividad/ai-usage-widget/releases/latest).
-2. Extract the archive to obtain `AIUsageWidget.app`.
-3. Move `AIUsageWidget.app` to `/Applications` and open it.
+1. Download `tacho-macos-arm64.zip` from the [Latest Release](https://github.com/austinatividad/ai-usage-widget/releases/latest).
+2. Extract the archive to obtain `tacho.app`.
+3. Move `tacho.app` to `/Applications` and open it.
 
 ---
 
@@ -108,12 +114,12 @@ Execute the packaging script to generate the release application bundle:
 
 To open the application:
 ```bash
-open AIUsageWidget.app
+open tacho.app
 ```
 
 To install the application to the system Applications folder:
 ```bash
-cp -r AIUsageWidget.app /Applications/
+cp -r tacho.app /Applications/
 ```
 
 ---
@@ -131,7 +137,7 @@ ai-usage-widget/
 │   ├── main.swift                    # Application entry point
 │   ├── Models/
 │   │   ├── AIProvider.swift          # Universal AI provider protocol and registry
-│   │   ├── UsageData.swift           # Quota data models
+│   │   ├── UsageData.swift           # Quota data models and display modes
 │   │   ├── SessionDetector.swift     # Process and file lock detection
 │   │   ├── QuotaService.swift        # Live authenticated quota synchronization
 │   │   └── UsageTracker.swift        # Dynamic quota tracker and event monitors
@@ -147,7 +153,8 @@ ai-usage-widget/
 │   └── Resources/
 │       ├── claude.svg                # Claude vector asset
 │       ├── antigravity.svg           # Antigravity vector asset
-│       └── codex.svg                 # Codex vector asset
+│       ├── codex.svg                 # Codex vector asset
+│       └── codex.png                 # Official Codex app icon asset
 └── README.md
 ```
 

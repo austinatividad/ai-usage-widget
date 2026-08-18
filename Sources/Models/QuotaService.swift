@@ -174,7 +174,7 @@ public final class QuotaService {
     
     private static func getAppSupportCacheURL() -> URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appDir = appSupport.appendingPathComponent("com.ity.aiusagewidget", isDirectory: true)
+        let appDir = appSupport.appendingPathComponent("com.ity.tacho", isDirectory: true)
         if !FileManager.default.fileExists(atPath: appDir.path) {
             try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
         }
