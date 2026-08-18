@@ -92,7 +92,7 @@ public struct OnboardingView: View {
                 
                 // Prominent Instruction Callout Card
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("The application requests read access to the 'gemini' key in your macOS Keychain to synchronize rate limits.")
+                    Text("tacho requests read access to Keychain credentials for your selected providers ('gemini', 'Claude Code-credentials') to synchronize live rate limits.")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(Color(white: 0.75))
                     
@@ -113,7 +113,7 @@ public struct OnboardingView: View {
                             .background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                         
-                        Text("in the system dialog.")
+                        Text("on each system prompt.")
                             .font(.system(size: 10.5, weight: .regular))
                             .foregroundColor(Color(white: 0.8))
                     }
@@ -141,13 +141,16 @@ public struct OnboardingView: View {
                     Button(action: {
                         isAuthorizingKeychain = true
                         Task {
-                            let result = await QuotaService.fetchAntigravityQuota()
+                            if registry.isEnabled(id: "claude") {
+                                _ = await QuotaService.fetchClaudeQuota()
+                            }
+                            if registry.isEnabled(id: "antigravity") {
+                                _ = await QuotaService.fetchAntigravityQuota()
+                            }
                             await MainActor.run {
                                 isAuthorizingKeychain = false
-                                if result != nil {
-                                    keychainAuthorized = true
-                                    tracker.refresh()
-                                }
+                                keychainAuthorized = true
+                                tracker.refresh()
                             }
                         }
                     }) {
