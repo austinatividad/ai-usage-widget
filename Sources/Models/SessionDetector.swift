@@ -66,10 +66,15 @@ public struct SessionDetector {
                 totalAlive += 1
                 let status = (json["status"] as? String)?.lowercased() ?? "idle"
                 
-                if status == "blocked" || status == "waiting_for_approval" {
+                if status == "blocked" || status == "waiting_for_approval" || status == "waiting" || status == "prompt" || status == "needs_response" {
                     needsResponseCount += 1
-                } else if status == "working" || status == "running" {
+                } else if status == "busy" || status == "working" || status == "running" || status == "thinking" || status == "streaming" || status == "prompting" {
                     activeCount += 1
+                } else if let updatedAtMs = json["updatedAt"] as? Double {
+                    let ageSec = (Date().timeIntervalSince1970 * 1000 - updatedAtMs) / 1000.0
+                    if ageSec >= 0 && ageSec < 2.5 {
+                        activeCount += 1
+                    }
                 }
             }
         }
