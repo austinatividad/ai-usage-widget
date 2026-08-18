@@ -3,3 +3,5 @@
 .DS_Store
 DerivedData/
 *.app
+*.zip
+*.tar.gz

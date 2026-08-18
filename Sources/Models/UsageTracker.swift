@@ -9,6 +9,7 @@ public final class UsageTracker: ObservableObject {
     @Published public private(set) var isRefreshing: Bool = false
     
     private var timer: Timer?
+    private var quotaTimer: Timer?
     private var fileWatchers: [DispatchSourceFileSystemObject] = []
     private var fileDescriptors: [Int32] = []
     private var debounceTask: Task<Void, Never>?
@@ -21,8 +22,8 @@ public final class UsageTracker: ObservableObject {
     
     private var agy5HReset: Date
     private var agyWeekReset: Date
-    private var agy5HPercentRemaining: Double = 0.8129
-    private var agy7DPercentRemaining: Double = 0.9664
+    private var agy5HPercentRemaining: Double = 0.6033
+    private var agy7DPercentRemaining: Double = 0.9308
 
     public init() {
         let now = Date()
@@ -45,8 +46,8 @@ public final class UsageTracker: ObservableObject {
         weekComp.second = 0
         self.claudeWeekReset = calendar.date(from: weekComp) ?? now.addingTimeInterval(75 * 3600)
         
-        self.agy5HReset = now.addingTimeInterval(3 * 3600 + 29 * 60)
-        self.agyWeekReset = now.addingTimeInterval(166 * 3600 + 29 * 60)
+        self.agy5HReset = now.addingTimeInterval(2 * 3600 + 12 * 60)
+        self.agyWeekReset = now.addingTimeInterval(165 * 3600 + 12 * 60)
         
         let claudeStatus = SessionDetector.detectClaudeStatus()
         let agyStatus = SessionDetector.detectAntigravityStatus()
@@ -65,24 +66,42 @@ public final class UsageTracker: ObservableObject {
             id: "antigravity",
             name: "Antigravity",
             format: .percentRemaining,
-            summaryLabel: "81% rem",
+            summaryLabel: "\(Int(round(agy5HPercentRemaining * 100)))% rem",
             activityStatus: agyStatus,
-            usage5H: WindowUsage(label: "5H", progress: 0.8129, format: .percentRemaining, resetDate: now.addingTimeInterval(3 * 3600 + 29 * 60)),
-            usage7D: WindowUsage(label: "7D", progress: 0.9664, format: .percentRemaining, resetDate: now.addingTimeInterval(166 * 3600 + 29 * 60))
+            usage5H: WindowUsage(label: "5H", progress: agy5HPercentRemaining, format: .percentRemaining, resetDate: agy5HReset),
+            usage7D: WindowUsage(label: "7D", progress: agy7DPercentRemaining, format: .percentRemaining, resetDate: agyWeekReset)
         )
         
         syncWithLocalActivity()
         startTimer()
         setupEventDrivenFileWatchers()
+        fetchLiveQuotasAsync()
     }
 
     public func refresh() {
         isRefreshing = true
+        fetchLiveQuotasAsync()
         syncWithLocalActivity()
         
         Task {
-            try? await Task.sleep(nanoseconds: 400_000_000)
+            try? await Task.sleep(nanoseconds: 600_000_000)
             self.isRefreshing = false
+        }
+    }
+
+    private func fetchLiveQuotasAsync() {
+        Task {
+            if let agyResult = await QuotaService.fetchAntigravityQuota() {
+                self.agy5HPercentRemaining = agyResult.percentRemaining5H
+                if let r5h = agyResult.resetDate5H {
+                    self.agy5HReset = r5h
+                }
+                self.agy7DPercentRemaining = agyResult.percentRemaining7D
+                if let r7d = agyResult.resetDate7D {
+                    self.agyWeekReset = r7d
+                }
+                self.recomputeWindows()
+            }
         }
     }
 
@@ -96,6 +115,17 @@ public final class UsageTracker: ObservableObject {
         t.tolerance = 0.15
         RunLoop.main.add(t, forMode: .common)
         self.timer = t
+        
+        // Quota background sync every 60s
+        quotaTimer?.invalidate()
+        let qt = Timer(timeInterval: 60.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.fetchLiveQuotasAsync()
+            }
+        }
+        qt.tolerance = 5.0
+        RunLoop.main.add(qt, forMode: .common)
+        self.quotaTimer = qt
     }
 
     private func setupEventDrivenFileWatchers() {
@@ -138,6 +168,7 @@ public final class UsageTracker: ObservableObject {
             try? await Task.sleep(nanoseconds: 80_000_000) // 80ms event coalescing
             if !Task.isCancelled {
                 self?.syncWithLocalActivity()
+                self?.fetchLiveQuotasAsync()
             }
         }
     }
