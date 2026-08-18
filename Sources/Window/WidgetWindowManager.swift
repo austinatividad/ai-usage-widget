@@ -7,6 +7,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
     public static let shared = WidgetWindowManager()
     
     private var window: NSWindow?
+    private var onboardingWindow: NSWindow?
     private var notchWindows: [NSWindow] = []
     private var statusItem: NSStatusItem?
     private let tracker = UsageTracker()
@@ -14,11 +15,10 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
     private let windowPositionKey = "AIUsageWidget_WindowPosition"
     private let pinOnTopKey = "AIUsageWidget_PinOnTop"
     private let enableNotchKey = "AIUsageWidget_EnableNotchIsland"
+    private let hasCompletedOnboardingKey = "AIUsageWidget_HasCompletedOnboarding"
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
-        setupWindow()
-        setupNotchIslandWindows()
         
         // Listen to screen changes (plugging in / unplugging external monitors)
         NotificationCenter.default.addObserver(
@@ -28,10 +28,12 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
             object: nil
         )
         
-        // Auto-register for login if not already set
-        if UserDefaults.standard.object(forKey: "AIUsageWidget_AutoLoginRegistered") == nil {
-            enableLaunchAtLogin(true)
-            UserDefaults.standard.set(true, forKey: "AIUsageWidget_AutoLoginRegistered")
+        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: hasCompletedOnboardingKey)
+        if !hasCompletedOnboarding {
+            showOnboardingWindow()
+        } else {
+            setupWindow()
+            setupNotchIslandWindows()
         }
     }
 
@@ -81,7 +83,48 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         statusItem?.menu = menu
     }
 
+    private func showOnboardingWindow() {
+        guard let screen = NSScreen.main else { return }
+        let screenRect = screen.visibleFrame
+        
+        let onboardingView = OnboardingView(tracker: tracker) { [weak self] in
+            self?.onboardingWindow?.orderOut(nil)
+            self?.onboardingWindow = nil
+            self?.setupWindow()
+            self?.setupNotchIslandWindows()
+        }
+        
+        let hostingView = NSHostingView(rootView: onboardingView)
+        hostingView.wantsLayer = true
+        
+        let width: CGFloat = 420
+        let height: CGFloat = 460
+        let x = screenRect.midX - (width / 2)
+        let y = screenRect.midY - (height / 2)
+        
+        let oWindow = NSWindow(
+            contentRect: NSRect(x: x, y: y, width: width, height: height),
+            styleMask: [.borderless, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        
+        oWindow.contentView = hostingView
+        oWindow.isOpaque = false
+        oWindow.backgroundColor = .clear
+        oWindow.hasShadow = false
+        oWindow.level = .floating
+        oWindow.isMovableByWindowBackground = true
+        oWindow.makeKeyAndOrderFront(nil)
+        self.onboardingWindow = oWindow
+    }
+
     private func setupWindow() {
+        guard window == nil else {
+            window?.makeKeyAndOrderFront(nil)
+            return
+        }
+        
         let contentView = WidgetView(tracker: tracker)
         let hostingView = NSHostingView(rootView: contentView)
         
@@ -132,7 +175,6 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         let isNotchEnabled = UserDefaults.standard.object(forKey: enableNotchKey) as? Bool ?? true
         guard isNotchEnabled else { return }
         
-        // Deploy Notch Island HUD to ALL connected screens (Built-in + External Displays)
         for screen in NSScreen.screens {
             let screenRect = screen.frame
             
