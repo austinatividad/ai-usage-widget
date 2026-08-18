@@ -156,7 +156,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         hostingView.wantsLayer = true
         
         let width: CGFloat = 440
-        let height: CGFloat = 530
+        let height: CGFloat = 580
         let x = screenRect.midX - (width / 2)
         let y = screenRect.midY - (height / 2)
         

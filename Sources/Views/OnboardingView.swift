@@ -222,8 +222,8 @@ public struct OnboardingView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(22)
-        .frame(width: 440, height: 530)
+        .padding(24)
+        .frame(width: 440, height: 580)
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)

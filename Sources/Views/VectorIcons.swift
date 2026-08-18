@@ -22,8 +22,12 @@ private enum IconAssetCache {
     }()
     
     static let codexImage: NSImage? = {
-        if let url = Bundle.module.url(forResource: "codex", withExtension: "svg"),
+        if let url = Bundle.module.url(forResource: "codex", withExtension: "png"),
            let img = NSImage(contentsOf: url) {
+            img.size = NSSize(width: 16, height: 16)
+            return img
+        } else if let url = Bundle.module.url(forResource: "codex", withExtension: "svg"),
+                  let img = NSImage(contentsOf: url) {
             img.size = NSSize(width: 16, height: 16)
             return img
         }
@@ -88,6 +92,7 @@ public struct CodexIconView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
         } else {
             Image(systemName: "bolt.circle.fill")
                 .resizable()
