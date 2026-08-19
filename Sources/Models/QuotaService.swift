@@ -303,16 +303,70 @@ public final class QuotaService {
     }
     
     // MARK: - Token Helpers
+    private static func readGenericPasswordViaCLI(service: String, account: String? = nil) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        var args = ["find-generic-password", "-s", service, "-w"]
+        if let account = account {
+            args += ["-a", account]
+        }
+        process.arguments = args
+        
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let str = String(data: data, encoding: .utf8) else { return nil }
+            let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        } catch {
+            return nil
+        }
+    }
+    
     private static func getClaudeToken() -> String? {
         if let token = cachedClaudeToken, let expiry = cachedClaudeTokenExpiry, expiry > Date() {
             return token
         }
         
+        var rawSecret = readGenericPasswordViaCLI(service: "Claude Code-credentials")
+        if rawSecret == nil {
+            rawSecret = readClaudeKeychainToken()
+        }
+        
+        guard let secretStr = rawSecret,
+              let jsonData = secretStr.data(using: .utf8),
+              let jsonObj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let oauthObj = jsonObj["claudeAiOauth"] as? [String: Any],
+              let accessToken = oauthObj["accessToken"] as? String else {
+            return nil
+        }
+        
+        var expiryDate = Date().addingTimeInterval(1800)
+        if let expiresAtMs = oauthObj["expiresAt"] as? Double {
+            let tokenExp = Date(timeIntervalSince1970: expiresAtMs / 1000.0)
+            if tokenExp > Date() {
+                expiryDate = min(expiryDate, tokenExp.addingTimeInterval(-60))
+            }
+        }
+        
+        cachedClaudeToken = accessToken
+        cachedClaudeTokenExpiry = expiryDate
+        return accessToken
+    }
+    
+    private static func readClaudeKeychainToken() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Claude Code-credentials",
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUISkip
         ]
         
         var item: CFTypeRef?
@@ -320,17 +374,7 @@ public final class QuotaService {
         guard status == errSecSuccess, let data = item as? Data else {
             return nil
         }
-        
-        guard let jsonObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let oauthObj = jsonObj["claudeAiOauth"] as? [String: Any],
-              let accessToken = oauthObj["accessToken"] as? String else {
-            return nil
-        }
-        
-        let expiryDate = Date().addingTimeInterval(300) // 5 min TTL
-        cachedClaudeToken = accessToken
-        cachedClaudeTokenExpiry = expiryDate
-        return accessToken
+        return String(data: data, encoding: .utf8)
     }
     
     private static func getAntigravityToken() -> String? {
@@ -338,33 +382,37 @@ public final class QuotaService {
             return token
         }
         
-        // Read fresh token from Keychain
         guard let token = readAgyKeychainToken() else {
             return nil
         }
         
-        let expiryDate = Date().addingTimeInterval(300) // 5 min TTL
+        let expiryDate = Date().addingTimeInterval(1800)
         cachedAgyToken = token
         cachedAgyTokenExpiry = expiryDate
         return token
     }
     
     private static func readAgyKeychainToken() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "gemini",
-            kSecAttrAccount as String: "antigravity",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
+        var rawSecret = readGenericPasswordViaCLI(service: "gemini", account: "antigravity")
         
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else {
-            return nil
+        if rawSecret == nil {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "gemini",
+                kSecAttrAccount as String: "antigravity",
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                kSecUseAuthenticationUI as String: kSecUseAuthenticationUISkip
+            ]
+            
+            var item: CFTypeRef?
+            let status = SecItemCopyMatching(query as CFDictionary, &item)
+            if status == errSecSuccess, let data = item as? Data, let str = String(data: data, encoding: .utf8) {
+                rawSecret = str
+            }
         }
         
-        guard var secret = String(data: data, encoding: .utf8) else {
+        guard var secret = rawSecret else {
             return nil
         }
         

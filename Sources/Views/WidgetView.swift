@@ -300,16 +300,8 @@ public struct WidgetView: View {
             .padding(.vertical, displayMode == .inline ? 12 : 14)
             .frame(width: dimensions.width, height: dimensions.height)
             .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                    
-                    RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
-                        .fill(Color.black.opacity(0.78))
-                    
-                    RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                }
+                RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
+                    .fill(Color.black)
             )
             .clipShape(RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous))
             .onHover { hovering in

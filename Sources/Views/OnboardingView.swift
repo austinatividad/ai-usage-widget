@@ -84,51 +84,18 @@ public struct OnboardingView: View {
             Divider()
                 .background(Color.white.opacity(0.12))
             
-            // Section 2: Live Quota Permission
+            // Section 2: Live Quota Connection
             VStack(alignment: .leading, spacing: 8) {
-                Text("2. Live Quota Authorization")
+                Text("2. Live Quota Synchronization")
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundColor(.white)
-                
-                // Prominent Instruction Callout Card
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("tacho requests read access to Keychain credentials for your selected providers ('gemini', 'Claude Code-credentials') to synchronize live rate limits.")
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundColor(Color(white: 0.75))
-                    
-                    HStack(spacing: 5) {
-                        Text("Action Required:")
-                            .font(.system(size: 10.5, weight: .bold))
-                            .foregroundColor(.white)
-                        
-                        Text("Select")
-                            .font(.system(size: 10.5, weight: .regular))
-                            .foregroundColor(Color(white: 0.8))
-                        
-                        Text("Always Allow")
-                            .font(.system(size: 10.5, weight: .bold))
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                        
-                        Text("on each system prompt.")
-                            .font(.system(size: 10.5, weight: .regular))
-                            .foregroundColor(Color(white: 0.8))
-                    }
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 
                 if keychainAuthorized {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(Color(red: 48/255, green: 209/255, blue: 88/255))
                             .font(.system(size: 13))
-                        Text("Keychain Access Authorized")
+                        Text("Live Quotas Connected")
                             .font(.system(size: 11.5, weight: .semibold))
                             .foregroundColor(Color(red: 48/255, green: 209/255, blue: 88/255))
                     }
@@ -160,10 +127,10 @@ public struct OnboardingView: View {
                                     .scaleEffect(0.6)
                                     .frame(width: 12, height: 12)
                             } else {
-                                Image(systemName: "key.fill")
+                                Image(systemName: "bolt.fill")
                                     .font(.system(size: 10))
                             }
-                            Text(isAuthorizingKeychain ? "Waiting for Permission..." : "Authorize Keychain Access")
+                            Text(isAuthorizingKeychain ? "Connecting..." : "Connect Live Quotas")
                                 .font(.system(size: 11.5, weight: .semibold))
                         }
                         .padding(.horizontal, 14)
@@ -227,14 +194,8 @@ public struct OnboardingView: View {
         .padding(24)
         .frame(width: 440, height: 580)
         .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.black.opacity(0.92))
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(0.16), lineWidth: 1)
-            }
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.black)
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .onAppear {

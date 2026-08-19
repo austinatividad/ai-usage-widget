@@ -29,34 +29,14 @@ public struct NotchIslandView: View {
             .padding(.bottom, 16)
             .frame(width: 350, height: expandedHeight)
             .background(
-                ZStack {
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: 24,
-                        bottomTrailingRadius: 24,
-                        topTrailingRadius: 0,
-                        style: .continuous
-                    )
-                    .fill(.ultraThinMaterial)
-                    
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: 24,
-                        bottomTrailingRadius: 24,
-                        topTrailingRadius: 0,
-                        style: .continuous
-                    )
-                    .fill(Color.black.opacity(0.95))
-                    
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: 24,
-                        bottomTrailingRadius: 24,
-                        topTrailingRadius: 0,
-                        style: .continuous
-                    )
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                }
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: 24,
+                    bottomTrailingRadius: 24,
+                    topTrailingRadius: 0,
+                    style: .continuous
+                )
+                .fill(Color.black)
             )
             .clipShape(
                 UnevenRoundedRectangle(

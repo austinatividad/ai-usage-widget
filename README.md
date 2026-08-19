@@ -98,7 +98,7 @@
 ## Installation
 
 ### Download Pre-built Binary
-1. Download `tacho-v0.0.1-macos-arm64.zip` from the [Latest Release](https://github.com/austinatividad/tacho/releases/latest).
+1. Download `tacho-v0.0.2-macos-arm64.zip` from the [Latest Release](https://github.com/austinatividad/tacho/releases/latest).
 2. Extract the archive to obtain `tacho.app`.
 3. Move `tacho.app` to `/Applications` and open it.
 

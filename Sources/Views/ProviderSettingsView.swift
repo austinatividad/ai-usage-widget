@@ -152,16 +152,12 @@ public struct ProviderSettingsView: View {
             Divider()
                 .background(Color.white.opacity(0.12))
             
-            // Section 3: Keychain Permissions
+            // Section 3: Live Synchronization
             VStack(alignment: .leading, spacing: 6) {
-                Text("Keychain Synchronization")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white)
-                
                 HStack {
-                    Text("Select 'Always Allow' in macOS prompt to authorize.")
-                        .font(.system(size: 10.5, weight: .regular))
-                        .foregroundColor(Color(white: 0.6))
+                    Text("Live Synchronization")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
                     
                     Spacer()
                     
@@ -184,10 +180,10 @@ public struct ProviderSettingsView: View {
                                     .scaleEffect(0.5)
                                     .frame(width: 10, height: 10)
                             } else {
-                                Image(systemName: "key.fill")
+                                Image(systemName: "arrow.clockwise")
                                     .font(.system(size: 9))
                             }
-                            Text(keychainAuthorized ? "Authorized" : "Re-authorize")
+                            Text(keychainAuthorized ? "Synchronized" : "Sync Now")
                                 .font(.system(size: 10.5, weight: .medium))
                         }
                         .padding(.horizontal, 10)
@@ -222,14 +218,8 @@ public struct ProviderSettingsView: View {
         .padding(22)
         .frame(width: 460, height: 530)
         .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.black.opacity(0.92))
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
-            }
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.black)
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
