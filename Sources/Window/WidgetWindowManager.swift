@@ -274,19 +274,37 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
         guard isNotchEnabled else { return }
         
         for screen in NSScreen.screens {
-            let screenRect = screen.frame
+            // Only attach notch windows to displays that have a physical hardware notch
+            guard screen.safeAreaInsets.top > 0 || screen.auxiliaryTopLeftArea != nil else {
+                continue
+            }
             
-            let islandView = NotchIslandView(tracker: tracker)
+            let screenRect = screen.frame
+            let notchHeight: CGFloat = screen.safeAreaInsets.top > 0 ? screen.safeAreaInsets.top : 32
+            let auxLeftArea = screen.auxiliaryTopLeftArea
+            let auxRightArea = screen.auxiliaryTopRightArea
+            
+            var notchCenterX: CGFloat = screenRect.midX
+            var physicalNotchWidth: CGFloat = 168
+            
+            if let left = auxLeftArea, let right = auxRightArea {
+                let notchLeft = left.maxX
+                let notchRight = right.minX
+                notchCenterX = (notchLeft + notchRight) / 2.0
+                physicalNotchWidth = max(150, (notchRight - notchLeft) - 10.0)
+            }
+            
+            let islandView = NotchIslandView(tracker: tracker, collapsedWidth: physicalNotchWidth, collapsedHeight: notchHeight)
             let hostingView = NSHostingView(rootView: islandView)
             hostingView.wantsLayer = true
             
-            let notchWidth: CGFloat = 360
-            let notchHeight: CGFloat = max(210, tracker.widgetHeight + 40)
-            let x = screenRect.midX - (notchWidth / 2)
-            let y = screenRect.maxY - notchHeight
+            let windowWidth: CGFloat = 360
+            let windowHeight: CGFloat = max(210, tracker.widgetHeight + 40)
+            let x = notchCenterX - (windowWidth / 2)
+            let y = screenRect.maxY - windowHeight
             
             let nWindow = NSWindow(
-                contentRect: NSRect(x: x, y: y, width: notchWidth, height: notchHeight),
+                contentRect: NSRect(x: x, y: y, width: windowWidth, height: windowHeight),
                 styleMask: [.borderless, .fullSizeContentView],
                 backing: .buffered,
                 defer: false

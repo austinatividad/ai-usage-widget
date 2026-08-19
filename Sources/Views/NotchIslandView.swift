@@ -6,79 +6,84 @@ public struct NotchIslandView: View {
     @State private var isExpanded: Bool = false
     @State private var collapseTask: Task<Void, Never>?
     
-    // Exact physical notch dimensions (MacBook Air / Pro hardware notch)
-    private let notchWidth: CGFloat = 180
-    private let notchHeight: CGFloat = 32
+    private let collapsedWidth: CGFloat
+    private let collapsedHeight: CGFloat
+    private let expandedWidth: CGFloat = 350
     
     private var expandedHeight: CGFloat {
-        return tracker.widgetHeight + 32
+        return tracker.widgetHeight + 36
     }
     
-    public init(tracker: UsageTracker) {
+    public init(tracker: UsageTracker, collapsedWidth: CGFloat = 185, collapsedHeight: CGFloat = 32) {
         self.tracker = tracker
+        self.collapsedWidth = collapsedWidth
+        self.collapsedHeight = collapsedHeight
     }
     
     public var body: some View {
         ZStack(alignment: .top) {
-            // Expanded Panel
-            VStack(spacing: 0) {
-                WidgetContent(tracker: tracker)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 48)
-            .padding(.bottom, 16)
-            .frame(width: 350, height: expandedHeight)
-            .background(
+            // Morphing Island Container
+            ZStack(alignment: .top) {
+                // Pure Black Background
                 UnevenRoundedRectangle(
                     topLeadingRadius: 0,
-                    bottomLeadingRadius: 24,
-                    bottomTrailingRadius: 24,
+                    bottomLeadingRadius: isExpanded ? 24 : 14,
+                    bottomTrailingRadius: isExpanded ? 24 : 14,
                     topTrailingRadius: 0,
                     style: .continuous
                 )
                 .fill(Color.black)
+                
+                // Content View
+                if isExpanded {
+                    VStack(spacing: 0) {
+                        WidgetContent(tracker: tracker)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 40)
+                    .padding(.bottom, 16)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.92, anchor: .top))
+                    ))
+                }
+            }
+            .frame(
+                width: isExpanded ? expandedWidth : collapsedWidth,
+                height: isExpanded ? expandedHeight : collapsedHeight,
+                alignment: .top
             )
             .clipShape(
                 UnevenRoundedRectangle(
                     topLeadingRadius: 0,
-                    bottomLeadingRadius: 24,
-                    bottomTrailingRadius: 24,
+                    bottomLeadingRadius: isExpanded ? 24 : 14,
+                    bottomTrailingRadius: isExpanded ? 24 : 14,
                     topTrailingRadius: 0,
                     style: .continuous
                 )
             )
-            .offset(y: isExpanded ? 0 : -(expandedHeight + 10))
-            .opacity(isExpanded ? 1.0 : 0.0)
-            .allowsHitTesting(isExpanded)
+            .contentShape(Rectangle())
             .onHover { hovering in
                 handleHover(hovering)
             }
-            
-            // Collapsed Notch Target Area (Strictly limited to the 180x32pt physical hardware notch)
-            if !isExpanded {
-                Color.clear
-                    .frame(width: notchWidth, height: notchHeight)
-                    .contentShape(Rectangle())
-                    .onHover { hovering in
-                        handleHover(hovering)
-                    }
-            }
         }
-        .frame(width: 350, height: isExpanded ? expandedHeight : notchHeight, alignment: .top)
+        .frame(width: expandedWidth, height: expandedHeight, alignment: .top)
+        .animation(.spring(response: 0.28, dampingFraction: 0.78, blendDuration: 0), value: isExpanded)
+        .animation(.easeInOut(duration: 0.2), value: tracker.activeProviders.count)
     }
     
     private func handleHover(_ hovering: Bool) {
         if hovering {
             collapseTask?.cancel()
-            withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.78, blendDuration: 0)) {
                 isExpanded = true
             }
         } else {
             collapseTask?.cancel()
             collapseTask = Task {
-                try? await Task.sleep(nanoseconds: 120_000_000)
+                try? await Task.sleep(nanoseconds: 180_000_000)
                 if !Task.isCancelled {
-                    withAnimation(.spring(response: 0.16, dampingFraction: 0.92)) {
+                    withAnimation(.spring(response: 0.24, dampingFraction: 0.88, blendDuration: 0)) {
                         isExpanded = false
                     }
                 }
