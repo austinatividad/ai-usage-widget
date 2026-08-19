@@ -174,8 +174,9 @@ public final class QuotaService {
         }
         
         let endpoints = [
-            "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota",
-            "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
+            "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+            "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+            "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
         ]
         
         for urlString in endpoints {
@@ -202,7 +203,7 @@ public final class QuotaService {
                     // Retry reading from Keychain directly
                     if let freshToken = readAgyKeychainToken() {
                         cachedAgyToken = freshToken
-                        cachedAgyTokenExpiry = Date().addingTimeInterval(300)
+                        cachedAgyTokenExpiry = Date().addingTimeInterval(1800)
                     }
                     continue
                 }
@@ -211,8 +212,7 @@ public final class QuotaService {
                     continue
                 }
                 
-                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let buckets = json["buckets"] as? [[String: Any]] else {
+                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                     continue
                 }
                 
@@ -220,40 +220,93 @@ public final class QuotaService {
                 isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                 let fallbackIso = ISO8601DateFormatter()
                 
-                var best5HFraction: Double?
-                var best5HReset: Date?
-                
-                for b in buckets {
-                    let modelId = (b["modelId"] as? String) ?? ""
-                    let fraction = (b["remainingFraction"] as? Double) ?? 1.0
-                    let resetStr = (b["resetTime"] as? String) ?? ""
-                    let resetDate = isoFormatter.date(from: resetStr) ?? fallbackIso.date(from: resetStr)
+                // 1. Preferred: retrieveUserQuotaSummary with grouped 5H and Weekly buckets
+                if let groups = json["groups"] as? [[String: Any]] {
+                    let geminiGroup = groups.first { group in
+                        let name = (group["displayName"] as? String) ?? ""
+                        return name.localizedCaseInsensitiveContains("gemini")
+                    } ?? groups.first
                     
-                    if modelId.starts(with: "gemini") {
-                        if best5HFraction == nil || fraction < best5HFraction! {
-                            best5HFraction = fraction
-                            best5HReset = resetDate
+                    if let group = geminiGroup, let buckets = group["buckets"] as? [[String: Any]] {
+                        var fraction5H: Double?
+                        var reset5H: Date?
+                        var fraction7D: Double?
+                        var reset7D: Date?
+                        
+                        for b in buckets {
+                            let window = (b["window"] as? String) ?? ""
+                            let bucketId = (b["bucketId"] as? String) ?? ""
+                            let fraction = (b["remainingFraction"] as? Double) ?? 1.0
+                            let resetStr = (b["resetTime"] as? String) ?? ""
+                            let resetDate = isoFormatter.date(from: resetStr) ?? fallbackIso.date(from: resetStr)
+                            
+                            if window == "5h" || bucketId.contains("5h") {
+                                fraction5H = fraction
+                                reset5H = resetDate
+                            } else if window == "weekly" || bucketId.contains("weekly") {
+                                fraction7D = fraction
+                                reset7D = resetDate
+                            }
+                        }
+                        
+                        if let f5h = fraction5H {
+                            let f7d = fraction7D ?? 1.0
+                            let r5h = reset5H ?? Date().addingTimeInterval(5 * 3600)
+                            let r7d = reset7D ?? Date().addingTimeInterval(7 * 24 * 3600)
+                            
+                            let result = LiveQuotaResult(
+                                percentRemaining5H: max(0.0, min(1.0, f5h)),
+                                resetDate5H: r5h,
+                                percentRemaining7D: max(0.0, min(1.0, f7d)),
+                                resetDate7D: r7d,
+                                lastUpdated: now
+                            )
+                            
+                            lastAgyFetchTime = now
+                            cachedAgyResult = result
+                            saveCachedQuota(result, filename: "agy_quota_cache.json")
+                            return result
                         }
                     }
                 }
                 
-                if let fraction5H = best5HFraction {
-                    let reset5H = best5HReset ?? Date().addingTimeInterval(4.5 * 3600)
-                    let weeklyFraction = max(0.0, min(1.0, fraction5H - 0.10)) // ~88% weekly
-                    let weeklyReset = Date().addingTimeInterval(162 * 3600 + 23 * 60)
+                // 2. Legacy fallback: retrieveUserQuota model buckets
+                if let buckets = json["buckets"] as? [[String: Any]] {
+                    var best5HFraction: Double?
+                    var best5HReset: Date?
                     
-                    let result = LiveQuotaResult(
-                        percentRemaining5H: fraction5H,
-                        resetDate5H: reset5H,
-                        percentRemaining7D: weeklyFraction,
-                        resetDate7D: weeklyReset,
-                        lastUpdated: now
-                    )
+                    for b in buckets {
+                        let modelId = (b["modelId"] as? String) ?? ""
+                        let fraction = (b["remainingFraction"] as? Double) ?? 1.0
+                        let resetStr = (b["resetTime"] as? String) ?? ""
+                        let resetDate = isoFormatter.date(from: resetStr) ?? fallbackIso.date(from: resetStr)
+                        
+                        if modelId.starts(with: "gemini") {
+                            if best5HFraction == nil || fraction < best5HFraction! {
+                                best5HFraction = fraction
+                                best5HReset = resetDate
+                            }
+                        }
+                    }
                     
-                    lastAgyFetchTime = now
-                    cachedAgyResult = result
-                    saveCachedQuota(result, filename: "agy_quota_cache.json")
-                    return result
+                    if let fraction5H = best5HFraction {
+                        let reset5H = best5HReset ?? Date().addingTimeInterval(5 * 3600)
+                        let weeklyFraction = cachedAgyResult?.percentRemaining7D ?? fraction5H
+                        let weeklyReset = cachedAgyResult?.resetDate7D ?? Date().addingTimeInterval(7 * 24 * 3600)
+                        
+                        let result = LiveQuotaResult(
+                            percentRemaining5H: max(0.0, min(1.0, fraction5H)),
+                            resetDate5H: reset5H,
+                            percentRemaining7D: max(0.0, min(1.0, weeklyFraction)),
+                            resetDate7D: weeklyReset,
+                            lastUpdated: now
+                        )
+                        
+                        lastAgyFetchTime = now
+                        cachedAgyResult = result
+                        saveCachedQuota(result, filename: "agy_quota_cache.json")
+                        return result
+                    }
                 }
             } catch {
                 continue
