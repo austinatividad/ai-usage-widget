@@ -300,10 +300,45 @@ public struct WidgetView: View {
             .padding(.vertical, displayMode == .inline ? 12 : 14)
             .frame(width: dimensions.width, height: dimensions.height)
             .background(
+                ZStack {
+                    // Dark Liquid Glass Base
+                    RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                    
+                    // Rich Dark Tint
+                    RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
+                        .fill(Color.black.opacity(0.68))
+                    
+                    // Top Specular Sheen
+                    RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.06), Color.clear],
+                                startPoint: .top,
+                                endPoint: .center
+                            )
+                        )
+                }
+            )
+            .overlay(
+                // Specular Refraction Rim
                 RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous)
-                    .fill(Color.black)
+                    .strokeBorder(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.white.opacity(0.28), location: 0.0),
+                                .init(color: Color.white.opacity(0.08), location: 0.25),
+                                .init(color: Color.white.opacity(0.02), location: 0.65),
+                                .init(color: Color.white.opacity(0.18), location: 1.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.75
+                    )
             )
             .clipShape(RoundedRectangle(cornerRadius: displayMode == .inline ? 16 : 22, style: .continuous))
+            .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 8)
             .onHover { hovering in
                 if displayMode == .hoverExpand {
                     withAnimation(.spring(response: 0.2, dampingFraction: 0.86)) {

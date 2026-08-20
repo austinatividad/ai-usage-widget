@@ -14,10 +14,18 @@ public struct NotchIslandView: View {
         return tracker.widgetHeight + 36
     }
     
-    public init(tracker: UsageTracker, collapsedWidth: CGFloat = 185, collapsedHeight: CGFloat = 32) {
+    public var onExpandChange: ((Bool) -> Void)?
+    
+    public init(
+        tracker: UsageTracker,
+        collapsedWidth: CGFloat = 185,
+        collapsedHeight: CGFloat = 32,
+        onExpandChange: ((Bool) -> Void)? = nil
+    ) {
         self.tracker = tracker
         self.collapsedWidth = collapsedWidth
         self.collapsedHeight = collapsedHeight
+        self.onExpandChange = onExpandChange
     }
     
     public var body: some View {
@@ -67,7 +75,7 @@ public struct NotchIslandView: View {
                 handleHover(hovering)
             }
         }
-        .frame(width: expandedWidth, height: expandedHeight, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.spring(response: 0.28, dampingFraction: 0.78, blendDuration: 0), value: isExpanded)
         .animation(.easeInOut(duration: 0.2), value: tracker.activeProviders.count)
     }
@@ -75,6 +83,7 @@ public struct NotchIslandView: View {
     private func handleHover(_ hovering: Bool) {
         if hovering {
             collapseTask?.cancel()
+            onExpandChange?(true)
             withAnimation(.spring(response: 0.28, dampingFraction: 0.78, blendDuration: 0)) {
                 isExpanded = true
             }
@@ -83,6 +92,7 @@ public struct NotchIslandView: View {
             collapseTask = Task {
                 try? await Task.sleep(nanoseconds: 180_000_000)
                 if !Task.isCancelled {
+                    onExpandChange?(false)
                     withAnimation(.spring(response: 0.24, dampingFraction: 0.88, blendDuration: 0)) {
                         isExpanded = false
                     }

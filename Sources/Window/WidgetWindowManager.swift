@@ -294,17 +294,49 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
                 physicalNotchWidth = max(150, (notchRight - notchLeft) - 10.0)
             }
             
-            let islandView = NotchIslandView(tracker: tracker, collapsedWidth: physicalNotchWidth, collapsedHeight: notchHeight)
+            let expWidth: CGFloat = 350
+            let expHeight: CGFloat = tracker.widgetHeight + 36
+            
+            let collapsedFrame = NSRect(
+                x: notchCenterX - (physicalNotchWidth / 2.0),
+                y: screenRect.maxY - notchHeight,
+                width: physicalNotchWidth,
+                height: notchHeight
+            )
+            let expandedFrame = NSRect(
+                x: notchCenterX - (expWidth / 2.0),
+                y: screenRect.maxY - expHeight,
+                width: expWidth,
+                height: expHeight
+            )
+            
+            var collapseWindowTask: Task<Void, Never>?
+            weak var weakWindow: NSWindow?
+            
+            let islandView = NotchIslandView(
+                tracker: tracker,
+                collapsedWidth: physicalNotchWidth,
+                collapsedHeight: notchHeight
+            ) { expanded in
+                if expanded {
+                    collapseWindowTask?.cancel()
+                    weakWindow?.setFrame(expandedFrame, display: true)
+                } else {
+                    collapseWindowTask?.cancel()
+                    collapseWindowTask = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 240_000_000)
+                        if !Task.isCancelled {
+                            weakWindow?.setFrame(collapsedFrame, display: true)
+                        }
+                    }
+                }
+            }
+            
             let hostingView = NSHostingView(rootView: islandView)
             hostingView.wantsLayer = true
             
-            let windowWidth: CGFloat = 360
-            let windowHeight: CGFloat = max(210, tracker.widgetHeight + 40)
-            let x = notchCenterX - (windowWidth / 2)
-            let y = screenRect.maxY - windowHeight
-            
             let nWindow = NSWindow(
-                contentRect: NSRect(x: x, y: y, width: windowWidth, height: windowHeight),
+                contentRect: collapsedFrame,
                 styleMask: [.borderless, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
@@ -318,6 +350,7 @@ public final class WidgetWindowManager: NSObject, NSApplicationDelegate, NSWindo
             nWindow.level = .statusBar
             nWindow.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
             nWindow.ignoresMouseEvents = false
+            weakWindow = nWindow
             
             nWindow.makeKeyAndOrderFront(nil)
             notchWindows.append(nWindow)

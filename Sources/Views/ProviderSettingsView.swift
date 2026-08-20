@@ -218,9 +218,38 @@ public struct ProviderSettingsView: View {
         .padding(22)
         .frame(width: 460, height: 530)
         .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.black.opacity(0.72))
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.06), Color.clear],
+                            startPoint: .top,
+                            endPoint: .center
+                        )
+                    )
+            }
+        )
+        .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.black)
+                .strokeBorder(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.white.opacity(0.28), location: 0.0),
+                            .init(color: Color.white.opacity(0.08), location: 0.25),
+                            .init(color: Color.white.opacity(0.02), location: 0.65),
+                            .init(color: Color.white.opacity(0.18), location: 1.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.75
+                )
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: 12)
     }
 }
